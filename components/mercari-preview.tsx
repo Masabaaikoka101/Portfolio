@@ -1,12 +1,15 @@
-import { ArrowLeft, Camera, MoreHorizontal, Share } from "lucide-react";
+"use client";
+
+import { ArrowLeft, Camera, Share, Copy, Check } from "lucide-react";
 import Image from "next/image";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 interface MercariPreviewProps {
     image?: string;
     title: string;
-    dsecription: string;
+    description: string;
     price: number;
     className?: string;
 }
@@ -14,10 +17,18 @@ interface MercariPreviewProps {
 export function MercariPreview({
     image,
     title,
-    dsecription,
+    description,
     price,
     className,
 }: MercariPreviewProps) {
+    const [copiedField, setCopiedField] = useState<string | null>(null);
+
+    const handleCopy = (text: string, field: string) => {
+        navigator.clipboard.writeText(text);
+        setCopiedField(field);
+        setTimeout(() => setCopiedField(null), 2000);
+    };
+
     return (
         <div
             className={cn(
@@ -59,16 +70,26 @@ export function MercariPreview({
             </div>
 
             {/* Content Area */}
-            <div className="p-4 space-y-4">
-                <div>
-                    <h2 className="text-xl font-bold text-gray-900 leading-tight">
+            <div className="p-4 space-y-6">
+                {/* Title Section */}
+                <div className="group relative">
+                    <h2 className="text-xl font-bold text-gray-900 leading-tight pr-8">
                         {title || "商品名がここに入ります"}
                     </h2>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute -right-2 top-0 h-8 w-8 text-gray-400 hover:text-blue-600"
+                        onClick={() => handleCopy(title, "title")}
+                    >
+                        {copiedField === "title" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
                     <p className="mt-1 text-sm text-gray-500">
                         カテゴリー &gt; サブカテゴリー
                     </p>
                 </div>
 
+                {/* Price Section */}
                 <div className="flex items-baseline gap-1">
                     <span className="text-sm font-bold text-red-600">¥</span>
                     <span className="text-3xl font-bold text-red-600 tracking-tight">
@@ -77,15 +98,26 @@ export function MercariPreview({
                     <span className="text-xs text-gray-500 ml-2">(送料込み)</span>
                 </div>
 
-                <div className="py-2">
+                {/* Description Section */}
+                <div className="py-2 relative group">
                     <div className="flex gap-2 mb-4">
                         <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs">目立った傷や汚れなし</span>
                         <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs">1~2日で発送</span>
                     </div>
 
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                        {dsecription || "ここにAI生成された商品説明文が表示されます。\n\n検索用キーワード：\n#メルカリ #AI #出品アシスタント"}
-                    </p>
+                    <div className="relative">
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed pr-8">
+                            {description || "ここにAI生成された商品説明文が表示されます。\n\n検索用キーワード：\n#メルカリ #AI #出品アシスタント"}
+                        </p>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute -right-2 top-0 h-8 w-8 text-gray-400 hover:text-blue-600 bg-white/80 backdrop-blur-sm"
+                            onClick={() => handleCopy(description, "description")}
+                        >
+                            {copiedField === "description" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                    </div>
                 </div>
             </div>
 

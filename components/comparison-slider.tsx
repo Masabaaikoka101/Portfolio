@@ -90,6 +90,7 @@ export function ComparisonSlider({
                     fill
                     className="object-cover"
                     draggable={false}
+                    style={{ filter: 'brightness(1.08) contrast(1.05) saturate(1.1)' }} // Simple "Pro" filter simulation
                 />
                 <div className="absolute top-4 right-4 bg-black/50 text-white px-2 py-1 text-xs rounded-md backdrop-blur-sm">
                     After (AI Processed)
@@ -102,17 +103,12 @@ export function ComparisonSlider({
                 style={{ width: `${position}%` }}
             >
                 <div className="relative h-full w-full">
-                    {/* Needs to be full container width to maintain aspect ratio/position */}
                     <div className="absolute inset-0 w-[100cqw] h-full">
-                        {/* Note: cqw might not work in all nesting contexts, better to use absolute positioning relative to parent dimensions which we can't easily do with pure CSS clip without knowing parent size. 
-                 Instead, we set the image width to the container width. 
-             */}
                         <Image
                             src={imageBefore}
                             alt="Before"
                             fill
                             className="object-cover max-w-none w-full h-full"
-                            // Important: object-cover on a clipped div works only if the image is sized to the full container
                             style={{ width: containerRef.current?.offsetWidth || '100%' }}
                             draggable={false}
                         />
@@ -125,7 +121,7 @@ export function ComparisonSlider({
 
             {/* Slider Handle */}
             <div
-                className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_10px_rgba(0,0,0,0.3)] cursor-ew-resize z-20 flex items-center justify-center pointer-events-none" // pointer-events-none to let click pass through to container
+                className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_10px_rgba(0,0,0,0.3)] cursor-ew-resize z-20 flex items-center justify-center pointer-events-none"
                 style={{ left: `${position}%` }}
             >
                 <div className="h-8 w-8 bg-white rounded-full flex items-center justify-center shadow-lg transform -translate-x-1/2 text-gray-600">
