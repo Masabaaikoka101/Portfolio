@@ -1,65 +1,96 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+import { ImageUploader } from "@/components/image-uploader";
+import { ComparisonSlider } from "@/components/comparison-slider";
+import { MercariPreview } from "@/components/mercari-preview";
 
 export default function Home() {
+  const [originalImage, setOriginalImage] = useState<string | null>(null);
+  const [processedImage, setProcessedImage] = useState<string | null>(null);
+
+  const handleImageSelect = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      setOriginalImage(result);
+      // TODO: Here we would trigger the AI processing. For now, use the same image as mock.
+      // In a real scenario, we'll wait for the API response.
+      setTimeout(() => setProcessedImage(result), 1000);
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <main className="flex min-h-screen flex-col items-center p-4 sm:p-24 bg-zinc-50 font-sans">
+      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex mb-12">
+        <div className="text-center w-full">
+          <h1 className="text-4xl font-bold text-gray-800 tracking-tight">
+            AIフリマ出品アシスタント
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mt-4 text-gray-600">
+            売れる写真と文章を、一瞬で。
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+      </div>
+
+      <div className="w-full max-w-5xl transition-all duration-500 ease-in-out">
+        {!originalImage ? (
+          <div className="max-w-xl mx-auto bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <ImageUploader
+              onImageSelect={handleImageSelect}
+              className="aspect-[4/3]"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+          </div>
+        ) : (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+
+            {processedImage ? (
+              <div className="grid gap-8 lg:grid-cols-2 animate-in fade-in duration-700">
+                {/* Left: Comparison */}
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 h-fit">
+                  <h2 className="text-lg font-semibold mb-4 text-gray-700">AI 画像補正プレビュー</h2>
+                  <ComparisonSlider
+                    imageBefore={originalImage}
+                    imageAfter={processedImage}
+                  />
+                  <p className="mt-2 text-xs text-gray-400 text-center">スライダーを動かして比較</p>
+                </div>
+
+                {/* Right: Mercari Preview */}
+                <div>
+                  <h2 className="text-lg font-semibold mb-4 text-gray-700 text-center lg:text-left">出品プレビュー</h2>
+                  <MercariPreview
+                    image={processedImage}
+                    title="【美品】おしゃれなビンテージ風ランプ"
+                    price={3500}
+                    dsecription="ご覧いただきありがとうございます。おしゃれなビンテージ風のランプです..."
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="max-w-xl mx-auto bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                <h2 className="text-lg font-semibold mb-4 text-gray-700">AI 画像補正プレビュー</h2>
+                <div className="aspect-[4/3] w-full bg-gray-100 rounded-xl flex items-center justify-center animate-pulse">
+                  <span className="text-gray-400">AI処理中...</span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-center pt-8">
+              <button
+                onClick={() => {
+                  setOriginalImage(null);
+                  setProcessedImage(null);
+                }}
+                className="text-sm text-gray-500 hover:text-red-500 underline"
+              >
+                リセットしてやり直す
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
