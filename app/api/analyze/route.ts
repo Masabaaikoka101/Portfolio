@@ -1,16 +1,44 @@
+/**
+ * 商品解析API
+ * Gemini AIを使用して商品画像からタイトル、説明文、価格を生成
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { DEFAULTS } from "@/lib/constants";
+import {
+    outputJsonSchema,
+    buildPrompt,
+    buildRetryPrompt,
+    parseJsonSafe,
+    validateAndNormalize,
+    toFrontendResponse,
+} from "@/lib/gemini";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+export const runtime = "nodejs";
 
+// ============================================================================
+// Main API Handler
+// ============================================================================
 export async function POST(req: NextRequest) {
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+        console.error("GEMINI_API_KEY is not configured");
+        return NextResponse.json(
+            { error: "APIキーが設定されていません" },
+            { status: 503 }
+        );
+    }
+
     try {
         const formData = await req.formData();
-        const file = formData.get("image") as File;
+        const file = formData.get("image") as File | null;
+        const status = (formData.get("status") as string) || DEFAULTS.status;
 
         if (!file) {
             return NextResponse.json(
-                { error: "No image provided" },
+                { error: "画像が送信されていません" },
                 { status: 400 }
             );
         }
@@ -18,51 +46,61 @@ export async function POST(req: NextRequest) {
         const buffer = await file.arrayBuffer();
         const base64Image = Buffer.from(buffer).toString("base64");
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-        const prompt = `
-    あなたはプロのメルカリ出品ライターです。
-    ユーザーがアップロードした商品画像を分析し、売れるための出品情報を生成してください。
-
-    以下のJSON形式で出力してください：
-    {
-      "title": "40文字以内の魅力的で検索されやすいタイトル",
-      "description": "商品の状態、特徴、魅力を伝える丁寧な商品説明文（検索用ハッシュタグも含める）",
-      "category": "推定されるカテゴリー",
-      "price": "市場相場に基づいた推定販売価格（数値のみ）",
-      "tags": ["タグ1", "タグ2", "タグ3"]
-    }
-
-    画像から読み取れる情報はできるだけ詳細に反映させてください。
-    `;
-
-        const result = await model.generateContent([
-            prompt,
-            {
-                inlineData: {
-                    data: base64Image,
-                    mimeType: file.type,
-                },
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash",
+            generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: outputJsonSchema as any,
             },
-        ]);
+        });
 
-        const response = await result.response;
-        const text = response.text();
+        const prompt = buildPrompt(status);
 
-        // Simple JSON extraction (in a real app, use structured output or more robust parsing)
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-            throw new Error("Failed to parse JSON from Gemini response");
+        // 最大2回試行（初回 + リトライ1回）
+        let lastError = "";
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                const currentPrompt = attempt === 0
+                    ? prompt
+                    : buildRetryPrompt(status, lastError);
+
+                const result = await model.generateContent([
+                    currentPrompt,
+                    {
+                        inlineData: {
+                            data: base64Image,
+                            mimeType: file.type,
+                        },
+                    },
+                ]);
+
+                const response = await result.response;
+                const text = response.text();
+
+                const rawData = parseJsonSafe(text);
+                const validated = validateAndNormalize(rawData);
+
+                return NextResponse.json(toFrontendResponse(validated));
+            } catch (parseError) {
+                lastError = parseError instanceof Error
+                    ? parseError.message
+                    : "不明なエラー";
+                console.error(`Attempt ${attempt + 1} failed:`, lastError);
+
+                if (attempt === 1) {
+                    throw new Error(`JSON解析に2回失敗しました: ${lastError}`);
+                }
+            }
         }
 
-        const data = JSON.parse(jsonMatch[0]);
-
-        return NextResponse.json(data);
+        throw new Error("予期しないエラー");
     } catch (error) {
         console.error("Gemini API Error:", error);
+        const message = error instanceof Error ? error.message : "不明なエラー";
         return NextResponse.json(
-            { error: "Failed to process image" },
-            { status: 500 }
+            { error: "画像の処理に失敗しました", detail: message },
+            { status: 502 }
         );
     }
 }
