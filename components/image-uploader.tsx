@@ -92,6 +92,7 @@ export function ImageUploader({ onImageSelect, className }: ImageUploaderProps) 
                         alt="Uploaded image"
                         fill
                         className="object-contain"
+                        unoptimized
                     />
                     <Button
                         variant="secondary"

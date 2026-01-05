@@ -90,6 +90,7 @@ export function ComparisonSlider({
                     fill
                     className="object-cover"
                     draggable={false}
+                    unoptimized
                     style={{ filter: 'brightness(1.08) contrast(1.05) saturate(1.1)' }} // Simple "Pro" filter simulation
                 />
                 <div className="absolute top-4 right-4 bg-black/50 text-white px-2 py-1 text-xs rounded-md backdrop-blur-sm">
@@ -99,22 +100,18 @@ export function ComparisonSlider({
 
             {/* Before Image (Foreground, clipped) */}
             <div
-                className="absolute inset-0 h-full w-full overflow-hidden"
-                style={{ width: `${position}%` }}
+                className="absolute inset-0 h-full w-full z-10"
+                style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
             >
-                <div className="relative h-full w-full">
-                    <div className="absolute inset-0 w-[100cqw] h-full">
-                        <Image
-                            src={imageBefore}
-                            alt="Before"
-                            fill
-                            className="object-cover max-w-none w-full h-full"
-                            style={{ width: containerRef.current?.offsetWidth || '100%' }}
-                            draggable={false}
-                        />
-                    </div>
-                </div>
-                <div className="absolute top-4 left-4 bg-black/50 text-white px-2 py-1 text-xs rounded-md backdrop-blur-sm z-10">
+                <Image
+                    src={imageBefore}
+                    alt="Before"
+                    fill
+                    className="object-cover"
+                    draggable={false}
+                    unoptimized
+                />
+                <div className="absolute top-4 left-4 bg-black/50 text-white px-2 py-1 text-xs rounded-md backdrop-blur-sm">
                     Before
                 </div>
             </div>

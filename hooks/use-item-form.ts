@@ -1,194 +1,108 @@
-/**
- * 商品フォーム管理カスタムフック
- * 商品情報の状態管理と保存処理を一元化
- */
-
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-import { toast } from "sonner";
-import { DEFAULTS } from "@/lib/constants";
-import type { AnalyzeResponse, EditImageResponse } from "@/types";
+import { useState, useCallback } from "react";
+import { AnalyzeResponse, ItemFormState } from "@/types";
+import { useImageUpload } from "./use-image-upload";
+import { useAiAnalysis } from "./use-ai-analysis";
+import { useItemStorage } from "./use-item-storage";
 
 interface UseItemFormOptions {
     onSuccess?: () => void;
 }
 
 export function useItemForm(options?: UseItemFormOptions) {
-    const router = useRouter();
+    // 1. Image Handling
+    const {
+        originalImage,
+        processedImage,
+        setProcessedImage,
+        selectedFile,
+        handleImageSelect: onImageSelect,
+        resetImage,
+    } = useImageUpload();
 
-    // 画像関連
-    const [originalImage, setOriginalImage] = useState<string | null>(null);
-    const [processedImage, setProcessedImage] = useState<string | null>(null);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-    // 状態フラグ
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [isEditingImage, setIsEditingImage] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const [showStatusStep, setShowStatusStep] = useState(false);
-
-    // フォームフィールド
+    // 2. Form State
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [price, setPrice] = useState(0);
     const [status, setStatus] = useState("");
+    const [showStatusStep, setShowStatusStep] = useState(false);
 
-    /**
-     * 画像選択時の処理
-     */
-    const handleImageSelect = (file: File) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            setOriginalImage(e.target?.result as string);
-        };
-        reader.readAsDataURL(file);
-        setSelectedFile(file);
+    // Wrapper for image selection to trigger status step
+    const handleImageSelect = useCallback((file: File) => {
+        onImageSelect(file);
         setShowStatusStep(true);
-    };
+    }, [onImageSelect]);
 
-    /**
-     * AI分析の開始
-     */
-    const startAnalysis = async () => {
-        if (!selectedFile) return;
+    // 3. AI Analysis
+    const onAnalysisSuccess = useCallback((result: AnalyzeResponse) => {
+        setTitle(result.title || "");
+        setDescription(result.description || "");
+        setPrice(result.price || 0);
+    }, []);
 
-        setShowStatusStep(false);
-        setIsAnalyzing(true);
-        setIsEditingImage(true);
-        setProcessedImage(null);
+    const onImageEditSuccess = useCallback((imageUrl: string) => {
+        setProcessedImage(imageUrl);
+    }, [setProcessedImage]);
 
-        const formData = new FormData();
-        formData.append("image", selectedFile);
-        formData.append("status", status);
-
-        const imageFormData = new FormData();
-        imageFormData.append("image", selectedFile);
-
-        const [analyzeResult, editResult] = await Promise.allSettled([
-            fetch("/api/analyze", {
-                method: "POST",
-                body: formData,
-            }).then(async (res) => {
-                if (!res.ok) throw new Error("Analysis failed");
-                return res.json() as Promise<AnalyzeResponse>;
-            }),
-            fetch("/api/edit-image", {
-                method: "POST",
-                body: imageFormData,
-            }).then(async (res) => {
-                if (!res.ok) throw new Error("Image editing failed");
-                return res.json() as Promise<EditImageResponse>;
-            }),
-        ]);
-
-        if (analyzeResult.status === "fulfilled") {
-            setTitle(analyzeResult.value.title || "");
-            setDescription(analyzeResult.value.description || "");
-            setPrice(analyzeResult.value.price || 0);
-        } else {
-            toast.error("テキスト生成に失敗しました");
-        }
-        setIsAnalyzing(false);
-
-        if (editResult.status === "fulfilled" && editResult.value.success) {
-            setProcessedImage(editResult.value.imageUrl!);
-        } else {
+    const onImageEditSkip = useCallback(() => {
+        if (selectedFile) {
             setProcessedImage(URL.createObjectURL(selectedFile));
-            toast.info("AI画像編集はスキップされました");
         }
-        setIsEditingImage(false);
-    };
+    }, [selectedFile, setProcessedImage]);
 
-    /**
-     * 保存処理
-     */
-    const save = async () => {
-        if (!processedImage || !title) return;
+    const { isAnalyzing, isEditingImage, startAnalysis: performAnalysis } = useAiAnalysis({
+        selectedFile,
+        status,
+        onAnalysisSuccess,
+        onImageEditSuccess,
+        onImageEditSkip,
+    });
 
-        setIsSaving(true);
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
+    const startAnalysis = useCallback(async () => {
+        setShowStatusStep(false);
+        await performAnalysis();
+    }, [performAnalysis]);
 
-            if (!user) {
-                toast.error("ログインが必要です");
-                return;
-            }
+    // 4. Storage (Save)
+    const { isSaving, saveItem: performSave } = useItemStorage();
 
-            // 画像のアップロード
-            let imageToUpload: Blob;
-            if (processedImage.startsWith("data:") || processedImage.startsWith("blob:")) {
-                const response = await fetch(processedImage);
-                imageToUpload = await response.blob();
-            } else {
-                throw new Error("Invalid image format");
-            }
+    const save = useCallback(async () => {
+        if (!processedImage) return;
 
-            const fileName = `${user.id}/${Date.now()}.png`;
+        const formState: ItemFormState = {
+            title,
+            description,
+            price,
+            status,
+        };
 
-            const { error: uploadError } = await supabase.storage
-                .from("item-images")
-                .upload(fileName, imageToUpload, { contentType: "image/png" });
+        await performSave(processedImage, formState, options?.onSuccess);
+    }, [processedImage, title, description, price, status, performSave, options?.onSuccess]);
 
-            if (uploadError) throw uploadError;
-
-            const { data: { publicUrl } } = supabase.storage
-                .from("item-images")
-                .getPublicUrl(fileName);
-
-            const { error: dbError } = await supabase.from("items").insert({
-                user_id: user.id,
-                image_url: publicUrl,
-                title,
-                description,
-                price,
-                status,
-                category: DEFAULTS.category,
-                tags: [],
-            });
-
-            if (dbError) throw dbError;
-
-            toast.success("保存しました！");
-            options?.onSuccess?.();
-            router.push("/history");
-        } catch (error) {
-            console.error(error);
-            toast.error("保存に失敗しました");
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    /**
-     * リセット処理
-     */
-    const reset = () => {
-        setOriginalImage(null);
-        setProcessedImage(null);
-        setSelectedFile(null);
+    // 5. Reset
+    const reset = useCallback(() => {
+        resetImage();
         setShowStatusStep(false);
         setStatus("");
         setTitle("");
         setDescription("");
         setPrice(0);
-    };
+    }, [resetImage]);
 
     return {
-        // 画像
+        // Image
         originalImage,
         processedImage,
         selectedFile,
 
-        // 状態フラグ
+        // Status
         isAnalyzing,
         isEditingImage,
         isSaving,
         showStatusStep,
 
-        // フォームフィールド
+        // Form Fields
         title,
         setTitle,
         description,
@@ -198,7 +112,7 @@ export function useItemForm(options?: UseItemFormOptions) {
         status,
         setStatus,
 
-        // アクション
+        // Actions
         handleImageSelect,
         startAnalysis,
         save,
