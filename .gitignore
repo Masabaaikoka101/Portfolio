@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+lint_output.txt
 
 # next.js
 /.next/
