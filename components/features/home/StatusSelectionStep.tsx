@@ -10,11 +10,12 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { STATUS_OPTIONS } from "@/lib/constants";
+import { ItemStatus } from "@/types";
 
 interface StatusSelectionStepProps {
     originalImage: string;
-    status: string;
-    setStatus: (status: string) => void;
+    status: ItemStatus | "";
+    setStatus: (status: ItemStatus | "") => void;
     onStartAnalysis: () => void;
     onReset: () => void;
 }
@@ -38,7 +39,7 @@ export function StatusSelectionStep({
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="status">商品の状態</Label>
-                    <Select value={status} onValueChange={setStatus}>
+                    <Select value={status} onValueChange={(value) => setStatus(value as ItemStatus)}>
                         <SelectTrigger id="status" className="w-full">
                             <SelectValue placeholder="状態を選択" />
                         </SelectTrigger>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { AnalyzeResponse, ItemFormState } from "@/types";
+import { AnalyzeResponse, ItemFormState, ItemStatus } from "@/types";
 import { useImageUpload } from "./use-image-upload";
 import { useAiAnalysis } from "./use-ai-analysis";
 import { useItemStorage } from "./use-item-storage";
@@ -25,7 +25,7 @@ export function useItemForm(options?: UseItemFormOptions) {
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [price, setPrice] = useState(0);
-    const [status, setStatus] = useState("");
+    const [status, setStatus] = useState<ItemStatus | "">("");
     const [showStatusStep, setShowStatusStep] = useState(false);
 
     // Wrapper for image selection to trigger status step
@@ -84,7 +84,7 @@ export function useItemForm(options?: UseItemFormOptions) {
     const reset = useCallback(() => {
         resetImage();
         setShowStatusStep(false);
-        setStatus("");
+        setStatus("" as ItemStatus | "");
         setTitle("");
         setDescription("");
         setPrice(0);
