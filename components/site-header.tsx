@@ -1,3 +1,27 @@
+/**
+ * サイトヘッダーコンポーネント
+ *
+ * このコンポーネントの役割:
+ * - アプリケーション共通のヘッダーUI
+ * - ロゴ、ナビゲーション、認証状態表示
+ * - 使い方モーダルの表示
+ *
+ * Why コンポーネントとして分離するのか:
+ * - 全ページで共通使用するため
+ * - 認証状態に応じたUIの切り替えを一元管理
+ * - レイアウトファイル(layout.tsx)から呼び出される
+ *
+ * 認証状態の管理:
+ * - useEffectで初期セッション取得
+ * - onAuthStateChangeでリアルタイム監視
+ * - ログイン/ログアウトに応じてUIを動的更新
+ *
+ * Learning:
+ * - Supabase Auth: https://supabase.com/docs/guides/auth
+ * - onAuthStateChange: https://supabase.com/docs/reference/javascript/auth-onauthstatechange
+ * - Radix Dialog: https://www.radix-ui.com/primitives/docs/components/dialog
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -5,7 +29,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { HelpCircle, Plus, LogIn, LogOut, User } from "lucide-react";
+import { HelpCircle, Plus, LogIn, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
     Dialog,
@@ -15,12 +39,43 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import type { User } from "@supabase/supabase-js";
 
+/**
+ * サイトヘッダーコンポーネント
+ *
+ * Why クライアントコンポーネントなのか:
+ * - 認証状態の監視にuseEffectが必要
+ * - モーダルの開閉にuseStateが必要
+ * - ログアウト等のインタラクションが必要
+ */
 export function SiteHeader() {
     const router = useRouter();
-    const [isHelpOpen, setIsHelpOpen] = useState(false);
-    const [user, setUser] = useState<any>(null);
 
+    /** 使い方モーダルの開閉状態 */
+    const [isHelpOpen, setIsHelpOpen] = useState(false);
+
+    /**
+     * 認証済みユーザー
+     *
+     * Why anyではなくUser型を使うべきか:
+     * - 型安全性の向上
+     * - IDEの補完機能が効く
+     * - Note: 既存コードとの互換性のためUser | nullを使用
+     */
+    const [user, setUser] = useState<User | null>(null);
+
+    /**
+     * 認証状態の初期化と監視
+     *
+     * Why useEffectで行うのか:
+     * - コンポーネントマウント時に一度だけ実行
+     * - クリーンアップでsubscriptionを解除
+     *
+     * Why getSessionとonAuthStateChangeの両方を使うのか:
+     * - getSession: 初期ロード時の状態取得
+     * - onAuthStateChange: ログイン/ログアウト時のリアルタイム更新
+     */
     useEffect(() => {
         // 現在のセッションを取得
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -34,9 +89,18 @@ export function SiteHeader() {
             setUser(session?.user ?? null);
         });
 
+        // クリーンアップ: メモリリーク防止
         return () => subscription.unsubscribe();
     }, []);
 
+    /**
+     * ログアウト処理
+     *
+     * What this does:
+     * 1. Supabaseからサインアウト
+     * 2. 成功/失敗をトースト通知
+     * 3. ホームページにリダイレクト
+     */
     const handleLogout = async () => {
         const { error } = await supabase.auth.signOut();
         if (error) {
@@ -51,7 +115,7 @@ export function SiteHeader() {
     return (
         <header className="sticky top-0 z-50 w-full border-b bg-white">
             <div className="container flex h-16 items-center justify-between px-4">
-                {/* Left: Logo + App Name */}
+                {/* 左側: ロゴ + アプリ名 */}
                 <Link href="/" className="flex items-center gap-1">
                     <Image
                         src="/logo.svg"
@@ -65,8 +129,9 @@ export function SiteHeader() {
                     </span>
                 </Link>
 
-                {/* Right: Navigation */}
+                {/* 右側: ナビゲーション */}
                 <div className="flex items-center gap-3">
+                    {/* 使い方モーダル */}
                     <Dialog open={isHelpOpen} onOpenChange={setIsHelpOpen}>
                         <DialogTrigger asChild>
                             <button
@@ -82,6 +147,7 @@ export function SiteHeader() {
                                     AXELの使い方
                                 </DialogTitle>
                             </DialogHeader>
+                            {/* ステップ説明 */}
                             <div className="space-y-4 py-4">
                                 <div className="flex gap-3">
                                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 font-bold text-sm">
@@ -137,9 +203,9 @@ export function SiteHeader() {
                         </DialogContent>
                     </Dialog>
 
+                    {/* 認証状態に応じたボタン */}
                     {user ? (
                         <>
-                            {/* History link removed */}
                             <Button
                                 variant="ghost"
                                 size="sm"

@@ -1,3 +1,28 @@
+/**
+ * メルカリ出品プレビューコンポーネント
+ *
+ * このコンポーネントの役割:
+ * - メルカリ出品画面を模したプレビュー表示
+ * - 商品情報（画像、タイトル、説明、価格）の表示・編集
+ * - クリップボードへのコピー機能
+ *
+ * Why このコンポーネントを作るのか:
+ * - ユーザーがメルカリへ転記する際の利便性向上
+ * - 実際の出品画面に近いUIで、完成イメージを確認できる
+ * - コピーボタンで簡単にメルカリに転記可能
+ *
+ * 設計パターン:
+ * - Controlled/Uncontrolled 切り替え: editable propsで編集可否を制御
+ * - Compound Component風: 画像、タイトル、説明、価格を1つにまとめる
+ *
+ * 使用場所:
+ * - メインページ（プレビューステップ）: editable=true
+ * - 履歴詳細ページ: editable=false
+ *
+ * Learning:
+ * - Clipboard API: https://developer.mozilla.org/ja/docs/Web/API/Clipboard_API
+ */
+
 "use client";
 
 import { Camera, Copy, Check } from "lucide-react";
@@ -9,21 +34,45 @@ import { Textarea } from "@/components/ui/textarea";
 import { ComparisonSlider } from "@/components/comparison-slider";
 import { Label } from "@/components/ui/label";
 
+/**
+ * Props型
+ *
+ * Why editable propsを使うのか:
+ * - 同じコンポーネントを「編集モード」と「表示モード」で使い分け
+ * - コード重複を避け、一貫したデザインを保証
+ */
 interface MercariPreviewProps {
+    /** 編集後の画像URL */
     image?: string;
+    /** オリジナル画像URL（比較スライダー用） */
     originalImage?: string;
+    /** 商品タイトル */
     title: string;
+    /** 商品説明文 */
     description: string;
+    /** 価格 */
     price: number;
+    /** 追加のCSSクラス */
     className?: string;
+    /** 保存ボタンクリック時のコールバック */
     onSave?: () => void;
+    /** 保存中フラグ */
     isSaving?: boolean;
+    /** 編集可能フラグ */
     editable?: boolean;
+    /** タイトル変更時のコールバック */
     onTitleChange?: (value: string) => void;
+    /** 説明文変更時のコールバック */
     onDescriptionChange?: (value: string) => void;
+    /** 価格変更時のコールバック */
     onPriceChange?: (value: number) => void;
 }
 
+/**
+ * メルカリ出品プレビューコンポーネント
+ *
+ * @param props - コンポーネントのprops
+ */
 export function MercariPreview({
     image,
     originalImage,
@@ -38,8 +87,22 @@ export function MercariPreview({
     onDescriptionChange,
     onPriceChange,
 }: MercariPreviewProps) {
+    /**
+     * コピー済みフィールド追跡（フィードバック表示用）
+     *
+     * Why setTimeoutでリセットするのか:
+     * - 「コピー済み」表示を一時的に見せてUXを向上
+     * - 2秒後に元のアイコンに戻す
+     */
     const [copiedField, setCopiedField] = useState<string | null>(null);
 
+    /**
+     * クリップボードにコピー
+     *
+     * Why navigator.clipboard.writeTextを使うのか:
+     * - 非同期でセキュアなクリップボードAPI
+     * - 古いdocument.execCommand('copy')より推奨される方法
+     */
     const handleCopy = (text: string, field: string) => {
         navigator.clipboard.writeText(text);
         setCopiedField(field);
@@ -53,9 +116,9 @@ export function MercariPreview({
                 className
             )}
         >
-            {/* Desktop: Side by side, Mobile: Stacked */}
+            {/* Desktop: 横並び, Mobile: 縦積み */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
-                {/* Left: Image Area */}
+                {/* 左側: 画像エリア */}
                 <div className="bg-gray-50 p-4 lg:p-6">
                     <Label className="text-sm font-medium text-gray-600 mb-3 block">
                         商品画像
@@ -65,26 +128,30 @@ export function MercariPreview({
                             </span>
                         )}
                     </Label>
+                    {/* 画像表示の条件分岐 */}
                     {image && originalImage ? (
+                        // Before/After比較スライダー
                         <ComparisonSlider
                             imageBefore={originalImage}
                             imageAfter={image}
                             className="aspect-square rounded-lg overflow-hidden"
                         />
                     ) : image ? (
+                        // 単一画像表示
                         <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
                             <img src={image} alt="Item" className="w-full h-full object-cover" />
                         </div>
                     ) : (
+                        // プレースホルダー
                         <div className="aspect-square rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
                             <Camera className="h-12 w-12" />
                         </div>
                     )}
                 </div>
 
-                {/* Right: Content Area */}
+                {/* 右側: コンテンツエリア */}
                 <div className="p-4 lg:p-6 flex flex-col h-full">
-                    {/* Title Section */}
+                    {/* タイトルセクション */}
                     <div className="mb-4">
                         <Label className="text-sm font-medium text-gray-600 mb-2 block">
                             商品名
@@ -115,7 +182,7 @@ export function MercariPreview({
                         </div>
                     </div>
 
-                    {/* Price Section */}
+                    {/* 価格セクション */}
                     <div className="mb-4">
                         <Label className="text-sm font-medium text-gray-600 mb-2 block">
                             販売価格
@@ -147,7 +214,7 @@ export function MercariPreview({
                         </div>
                     </div>
 
-                    {/* Description Section - Takes remaining space */}
+                    {/* 説明文セクション（残りスペースを使用） */}
                     <div className="flex-1 flex flex-col min-h-0">
                         <div className="flex items-center justify-between mb-2">
                             <Label className="text-sm font-medium text-gray-600">
@@ -181,7 +248,7 @@ export function MercariPreview({
                         )}
                     </div>
 
-                    {/* Save Button */}
+                    {/* 保存ボタン（onSaveが渡された場合のみ表示） */}
                     {onSave && (
                         <div className="mt-4 pt-4 border-t border-gray-100">
                             <Button
