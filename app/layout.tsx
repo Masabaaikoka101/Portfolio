@@ -26,6 +26,7 @@ import { Inter, Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { Toaster } from "@/components/ui/sonner";
+import { Providers } from "@/components/providers";
 
 /**
  * 欧文フォント設定
@@ -85,9 +86,11 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${notoSansJP.variable} antialiased font-sans bg-gray-50 text-gray-900`}
       >
-        <SiteHeader />
-        {children}
-        <Toaster />
+        <Providers>
+          <SiteHeader />
+          {children}
+          <Toaster />
+        </Providers>
       </body>
     </html>
   );
