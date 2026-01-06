@@ -10,6 +10,10 @@
  * - ユーザーインタラクション（画像選択、分析開始等）が必要
  * - リアルタイムの状態更新が必要
  *
+ * 認証について:
+ * - useAuthフックでログイン必須チェック
+ * - 未ログイン時は自動的にログインページへリダイレクト
+ *
  * 設計パターン:
  * - Container Component: 状態管理を担当
  * - Presentational Components: 各ステップの表示は専用コンポーネントに委譲
@@ -29,10 +33,26 @@
 "use client";
 
 import { useItemForm } from "@/hooks/use-item-form";
+import { useAuth } from "@/hooks/use-auth";
 import { EmptyState } from "@/components/features/home/EmptyState";
 import { StatusSelectionStep } from "@/components/features/home/StatusSelectionStep";
 import { AnalysisLoading } from "@/components/features/home/AnalysisLoading";
 import { PreviewStep } from "@/components/features/home/PreviewStep";
+import { Loader2 } from "lucide-react";
+
+/**
+ * 認証チェック中のローディング画面
+ */
+function AuthLoading() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+        <p className="text-gray-600">認証を確認中...</p>
+      </div>
+    </div>
+  );
+}
 
 /**
  * ホームページコンポーネント
@@ -41,8 +61,23 @@ import { PreviewStep } from "@/components/features/home/PreviewStep";
  * - 複雑な状態管理を統合フックに委譲
  * - ページコンポーネントをシンプルに保つ
  * - 状態管理ロジックの再利用性向上
+ *
+ * Why useAuthを使うのか:
+ * - ログイン必須ページとして機能させる
+ * - 未ログイン時は自動でログインページへリダイレクト
  */
 export default function Home() {
+  // =========================================================================
+  // 認証チェック（ログイン必須）
+  // =========================================================================
+  const { isLoading: isAuthLoading, isAuthenticated } = useAuth({
+    required: true,
+    redirectTo: "/login",
+  });
+
+  // =========================================================================
+  // フォーム状態
+  // =========================================================================
   const {
     // 画像状態
     originalImage,
@@ -67,6 +102,20 @@ export default function Home() {
     save,
     reset,
   } = useItemForm();
+
+  // =========================================================================
+  // 認証チェック中
+  // =========================================================================
+  if (isAuthLoading) {
+    return <AuthLoading />;
+  }
+
+  // =========================================================================
+  // 未認証（リダイレクト中）
+  // =========================================================================
+  if (!isAuthenticated) {
+    return <AuthLoading />;
+  }
 
   // =========================================================================
   // ローディング中はフルスクリーンローディングを表示
