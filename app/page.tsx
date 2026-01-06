@@ -14,16 +14,14 @@
  * - useAuthフックでログイン必須チェック
  * - 未ログイン時は自動的にログインページへリダイレクト
  *
+ * ファイル選択について:
+ * - ヘッダーの「新規作成」からも画像選択可能
+ * - FileSelectContextで共有
+ *
  * 設計パターン:
  * - Container Component: 状態管理を担当
  * - Presentational Components: 各ステップの表示は専用コンポーネントに委譲
  * - Conditional Rendering: 状態に応じて表示するコンポーネントを切り替え
- *
- * フロー:
- * 1. EmptyState: 画像未選択時
- * 2. StatusSelectionStep: 画像選択後、商品状態を選択
- * 3. AnalysisLoading: AI分析中
- * 4. PreviewStep: 分析完了後、結果をプレビュー・編集
  *
  * Learning:
  * - Next.js App Router: https://nextjs.org/docs/app
@@ -32,8 +30,10 @@
 
 "use client";
 
+import { useEffect } from "react";
 import { useItemForm } from "@/hooks/use-item-form";
 import { useAuth } from "@/hooks/use-auth";
+import { useFileSelect } from "@/contexts/file-select-context";
 import { EmptyState } from "@/components/features/home/EmptyState";
 import { StatusSelectionStep } from "@/components/features/home/StatusSelectionStep";
 import { AnalysisLoading } from "@/components/features/home/AnalysisLoading";
@@ -56,15 +56,6 @@ function AuthLoading() {
 
 /**
  * ホームページコンポーネント
- *
- * Why useItemFormを使うのか:
- * - 複雑な状態管理を統合フックに委譲
- * - ページコンポーネントをシンプルに保つ
- * - 状態管理ロジックの再利用性向上
- *
- * Why useAuthを使うのか:
- * - ログイン必須ページとして機能させる
- * - 未ログイン時は自動でログインページへリダイレクト
  */
 export default function Home() {
   // =========================================================================
@@ -74,6 +65,11 @@ export default function Home() {
     required: true,
     redirectTo: "/login",
   });
+
+  // =========================================================================
+  // ファイル選択コンテキスト（ヘッダーからのファイル選択を受け取る）
+  // =========================================================================
+  const { selectedFile, clearFile } = useFileSelect();
 
   // =========================================================================
   // フォーム状態
@@ -102,6 +98,16 @@ export default function Home() {
     save,
     reset,
   } = useItemForm();
+
+  // =========================================================================
+  // ヘッダーからのファイル選択を処理
+  // =========================================================================
+  useEffect(() => {
+    if (selectedFile) {
+      handleImageSelect(selectedFile);
+      clearFile(); // 処理後にクリア
+    }
+  }, [selectedFile, handleImageSelect, clearFile]);
 
   // =========================================================================
   // 認証チェック中

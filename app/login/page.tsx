@@ -14,17 +14,11 @@
  * 設計パターン:
  * - Controlled Form: useState + onChange で入力値を管理
  * - Toggle Pattern: isLoginフラグでログイン/登録を切り替え
- *
- * UXの工夫:
- * - ログインと登録を1つのフォームで切り替え（ページ遷移不要）
- * - エラーメッセージの日本語化
- * - ローディング中のボタン無効化
+ * - Floating Label Pattern: ラベルが入力時に上に移動するアニメーション
  *
  * Learning:
  * - Supabase Auth: https://supabase.com/docs/guides/auth/quickstarts/nextjs
- * - signInWithPassword: https://supabase.com/docs/reference/javascript/auth-signinwithpassword
- * - signUp: https://supabase.com/docs/reference/javascript/auth-signup
- * - resetPasswordForEmail: https://supabase.com/docs/reference/javascript/auth-resetpasswordforemail
+ * - Floating Label: https://css-tricks.com/float-labels-css/
  */
 
 "use client";
@@ -33,20 +27,87 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 
 /**
- * ログインページコンポーネント
+ * フローティングラベル付き入力欄コンポーネント
  *
- * 状態管理:
- * - loading: 認証処理中フラグ
- * - isLogin: ログイン/登録モードの切り替え
- * - showResetPassword: パスワードリセットモードの切り替え
- * - email, password: フォーム入力値
+ * Why カスタムコンポーネントにするのか:
+ * - フローティングラベルのロジックを再利用可能に
+ * - スタイルの一貫性を保つ
+ */
+interface FloatingInputProps {
+    id: string;
+    label: string;
+    type: string;
+    value: string;
+    onChange: (value: string) => void;
+    autoComplete?: string;
+    required?: boolean;
+    minLength?: number;
+}
+
+function FloatingInput({
+    id,
+    label,
+    type,
+    value,
+    onChange,
+    autoComplete,
+    required = false,
+    minLength,
+}: FloatingInputProps) {
+    const [isFocused, setIsFocused] = useState(false);
+
+    // ラベルが上に移動する条件: フォーカス中 または 値がある
+    const isFloating = isFocused || value.length > 0;
+
+    return (
+        <div className="relative">
+            <input
+                id={id}
+                name={id}
+                type={type}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                autoComplete={autoComplete}
+                required={required}
+                minLength={minLength}
+                className={`
+                    peer w-full px-4 py-3 pt-6 pb-2
+                    border-2 rounded-lg bg-gray-50
+                    text-gray-900 text-base
+                    outline-none transition-all duration-200
+                    ${isFocused
+                        ? "border-blue-500 bg-white"
+                        : "border-gray-200 hover:border-gray-300"
+                    }
+                `}
+            />
+            <label
+                htmlFor={id}
+                className={`
+                    absolute left-4 
+                    transition-all duration-200 ease-out
+                    pointer-events-none
+                    ${isFloating
+                        ? "top-2 text-xs text-blue-600 font-medium"
+                        : "top-1/2 -translate-y-1/2 text-base text-gray-500"
+                    }
+                `}
+            >
+                {label}
+            </label>
+        </div>
+    );
+}
+
+/**
+ * ログインページコンポーネント
  */
 export default function LoginPage() {
     const router = useRouter();
@@ -64,13 +125,6 @@ export default function LoginPage() {
 
     /**
      * 認証処理
-     *
-     * What this does:
-     * 1. デフォルトのフォーム送信を防止
-     * 2. ローディング状態をON
-     * 3. ログインまたは新規登録を実行
-     * 4. 成功時: トースト通知 → ホームへリダイレクト
-     * 5. 失敗時: エラーメッセージを日本語で表示
      */
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -78,7 +132,6 @@ export default function LoginPage() {
 
         try {
             if (isLogin) {
-                // ログイン
                 const { error } = await supabase.auth.signInWithPassword({
                     email,
                     password,
@@ -88,29 +141,14 @@ export default function LoginPage() {
                 router.push("/");
                 router.refresh();
             } else {
-                // 新規登録
                 const { data, error } = await supabase.auth.signUp({
                     email,
                     password,
                     options: {
-                        /**
-                         * メール確認後のリダイレクト先
-                         *
-                         * Why window.location.originを使うのか:
-                         * - 開発環境とプロダクション環境でURLが異なる
-                         * - 動的に現在のオリジンを取得
-                         */
                         emailRedirectTo: `${window.location.origin}/auth/callback`,
                     },
                 });
 
-                /**
-                 * セッション確認
-                 *
-                 * Why data.sessionをチェックするのか:
-                 * - Supabaseの設定で「メール確認なし」の場合、即座にセッションが返る
-                 * - メール確認ありの場合、sessionはnull
-                 */
                 if (data.session) {
                     toast.success("ログインしました");
                     router.push("/");
@@ -120,7 +158,6 @@ export default function LoginPage() {
                 }
             }
         } catch (error: any) {
-            // 認証エラーは想定内なのでwarnレベルでログ出力
             console.warn("Authentication error:", error.message);
             const errorMessage = translateError(error.message);
             toast.error(errorMessage);
@@ -131,15 +168,10 @@ export default function LoginPage() {
 
     /**
      * パスワードリセット処理
-     *
-     * What this does:
-     * 1. メールアドレスにパスワードリセットリンクを送信
-     * 2. 成功時: トースト通知
-     * 3. 失敗時: エラーメッセージを表示
      */
     const handleResetPassword = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (!email) {
             toast.error("メールアドレスを入力してください");
             return;
@@ -166,10 +198,6 @@ export default function LoginPage() {
 
     /**
      * エラーメッセージ翻訳
-     *
-     * Why 日本語化するのか:
-     * - Supabaseのエラーメッセージは英語
-     * - 日本語ユーザーにとって分かりやすくする
      */
     const translateError = (message: string) => {
         if (message.includes("Invalid login credentials")) return "メールアドレスまたはパスワードが間違っています";
@@ -200,24 +228,19 @@ export default function LoginPage() {
 
                     {/* リセットフォーム */}
                     <form className="mt-8 space-y-6" onSubmit={handleResetPassword}>
-                        <div>
-                            <Label htmlFor="reset-email">メールアドレス</Label>
-                            <Input
-                                id="reset-email"
-                                name="email"
-                                type="email"
-                                autoComplete="email"
-                                required
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="mt-1"
-                                placeholder="name@example.com"
-                            />
-                        </div>
+                        <FloatingInput
+                            id="reset-email"
+                            label="メールアドレス"
+                            type="email"
+                            value={email}
+                            onChange={setEmail}
+                            autoComplete="email"
+                            required
+                        />
 
                         <Button
                             type="submit"
-                            className="w-full bg-blue-600 hover:bg-blue-700 font-bold"
+                            className="w-full bg-blue-600 hover:bg-blue-700 font-bold py-3"
                             disabled={loading}
                         >
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -259,39 +282,27 @@ export default function LoginPage() {
                 </div>
 
                 {/* 認証フォーム */}
-                <form className="mt-8 space-y-6" onSubmit={handleAuth}>
-                    <div className="space-y-4">
-                        <div>
-                            <Label htmlFor="email">メールアドレス</Label>
-                            <Input
-                                id="email"
-                                name="email"
-                                type="email"
-                                autoComplete="email"
-                                required
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="mt-1"
-                                placeholder="name@example.com"
-                            />
-                        </div>
+                <form className="mt-8 space-y-5" onSubmit={handleAuth}>
+                    <FloatingInput
+                        id="email"
+                        label="メールアドレス"
+                        type="email"
+                        value={email}
+                        onChange={setEmail}
+                        autoComplete="email"
+                        required
+                    />
 
-                        <div>
-                            <Label htmlFor="password">パスワード</Label>
-                            <Input
-                                id="password"
-                                name="password"
-                                type="password"
-                                autoComplete="current-password"
-                                required
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="mt-1"
-                                placeholder="••••••••"
-                                minLength={6}
-                            />
-                        </div>
-                    </div>
+                    <FloatingInput
+                        id="password"
+                        label="パスワード"
+                        type="password"
+                        value={password}
+                        onChange={setPassword}
+                        autoComplete="current-password"
+                        required
+                        minLength={6}
+                    />
 
                     {/* パスワードを忘れた場合（ログインモードのみ表示） */}
                     {isLogin && (
@@ -308,7 +319,7 @@ export default function LoginPage() {
 
                     <Button
                         type="submit"
-                        className="w-full bg-blue-600 hover:bg-blue-700 font-bold"
+                        className="w-full bg-blue-600 hover:bg-blue-700 font-bold py-3"
                         disabled={loading}
                     >
                         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
