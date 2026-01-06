@@ -3,6 +3,7 @@
  *
  * このページの役割:
  * - ユーザー認証（ログイン/新規登録）
+ * - パスワードリセット機能
  * - Supabase Authとの連携
  *
  * Why クライアントコンポーネントなのか:
@@ -23,6 +24,7 @@
  * - Supabase Auth: https://supabase.com/docs/guides/auth/quickstarts/nextjs
  * - signInWithPassword: https://supabase.com/docs/reference/javascript/auth-signinwithpassword
  * - signUp: https://supabase.com/docs/reference/javascript/auth-signup
+ * - resetPasswordForEmail: https://supabase.com/docs/reference/javascript/auth-resetpasswordforemail
  */
 
 "use client";
@@ -43,6 +45,7 @@ import { Loader2 } from "lucide-react";
  * 状態管理:
  * - loading: 認証処理中フラグ
  * - isLogin: ログイン/登録モードの切り替え
+ * - showResetPassword: パスワードリセットモードの切り替え
  * - email, password: フォーム入力値
  */
 export default function LoginPage() {
@@ -52,6 +55,8 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     /** ログインモード（false = 新規登録モード） */
     const [isLogin, setIsLogin] = useState(true);
+    /** パスワードリセットモード */
+    const [showResetPassword, setShowResetPassword] = useState(false);
     /** メールアドレス */
     const [email, setEmail] = useState("");
     /** パスワード */
@@ -125,6 +130,41 @@ export default function LoginPage() {
     };
 
     /**
+     * パスワードリセット処理
+     *
+     * What this does:
+     * 1. メールアドレスにパスワードリセットリンクを送信
+     * 2. 成功時: トースト通知
+     * 3. 失敗時: エラーメッセージを表示
+     */
+    const handleResetPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        if (!email) {
+            toast.error("メールアドレスを入力してください");
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+            });
+
+            if (error) throw error;
+
+            toast.success("パスワードリセットのメールを送信しました。メールを確認してください。");
+            setShowResetPassword(false);
+        } catch (error: any) {
+            console.warn("Password reset error:", error.message);
+            toast.error("パスワードリセットメールの送信に失敗しました");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /**
      * エラーメッセージ翻訳
      *
      * Why 日本語化するのか:
@@ -141,7 +181,67 @@ export default function LoginPage() {
     };
 
     // =========================================================================
-    // レンダリング
+    // パスワードリセット画面
+    // =========================================================================
+    if (showResetPassword) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+                <div className="w-full max-w-sm space-y-8 bg-white p-8 shadow-lg rounded-xl">
+                    {/* ヘッダー */}
+                    <div className="text-center">
+                        <h2 className="text-2xl font-bold tracking-tight text-gray-900">
+                            パスワードをリセット
+                        </h2>
+                        <p className="mt-2 text-sm text-gray-600">
+                            登録済みのメールアドレスを入力してください。
+                            パスワードリセット用のリンクを送信します。
+                        </p>
+                    </div>
+
+                    {/* リセットフォーム */}
+                    <form className="mt-8 space-y-6" onSubmit={handleResetPassword}>
+                        <div>
+                            <Label htmlFor="reset-email">メールアドレス</Label>
+                            <Input
+                                id="reset-email"
+                                name="email"
+                                type="email"
+                                autoComplete="email"
+                                required
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="mt-1"
+                                placeholder="name@example.com"
+                            />
+                        </div>
+
+                        <Button
+                            type="submit"
+                            className="w-full bg-blue-600 hover:bg-blue-700 font-bold"
+                            disabled={loading}
+                        >
+                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            リセットメールを送信
+                        </Button>
+                    </form>
+
+                    {/* 戻るリンク */}
+                    <div className="text-center text-sm">
+                        <button
+                            type="button"
+                            onClick={() => setShowResetPassword(false)}
+                            className="font-medium text-blue-600 hover:text-blue-500 hover:underline"
+                        >
+                            ログイン画面に戻る
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // =========================================================================
+    // ログイン/登録画面
     // =========================================================================
     return (
         <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
@@ -192,6 +292,19 @@ export default function LoginPage() {
                             />
                         </div>
                     </div>
+
+                    {/* パスワードを忘れた場合（ログインモードのみ表示） */}
+                    {isLogin && (
+                        <div className="text-right">
+                            <button
+                                type="button"
+                                onClick={() => setShowResetPassword(true)}
+                                className="text-sm text-gray-500 hover:text-blue-600 hover:underline"
+                            >
+                                パスワードをお忘れですか？
+                            </button>
+                        </div>
+                    )}
 
                     <Button
                         type="submit"
