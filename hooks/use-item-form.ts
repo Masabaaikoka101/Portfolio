@@ -94,6 +94,8 @@ export function useItemForm(options?: UseItemFormOptions) {
     const [description, setDescription] = useState("");
     const [price, setPrice] = useState(0);
     const [status, setStatus] = useState<ItemStatus | "">("");
+    /** 背景タイプ（デフォルト: 白スタジオ） */
+    const [backgroundType, setBackgroundType] = useState("white");
 
     /** 商品状態選択ステップの表示フラグ */
     const [showStatusStep, setShowStatusStep] = useState(false);
@@ -150,6 +152,7 @@ export function useItemForm(options?: UseItemFormOptions) {
     const { isAnalyzing, isEditingImage, startAnalysis: performAnalysis } = useAiAnalysis({
         selectedFile,
         status,
+        backgroundType,
         onAnalysisSuccess,
         onImageEditSuccess,
         onImageEditSkip,
@@ -203,6 +206,7 @@ export function useItemForm(options?: UseItemFormOptions) {
         resetImage();
         setShowStatusStep(false);
         setStatus("");
+        setBackgroundType("white");
         setTitle("");
         setDescription("");
         setPrice(0);
@@ -232,6 +236,8 @@ export function useItemForm(options?: UseItemFormOptions) {
         setPrice,
         status,
         setStatus,
+        backgroundType,
+        setBackgroundType,
 
         // アクション
         handleImageSelect,

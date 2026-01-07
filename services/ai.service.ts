@@ -89,12 +89,14 @@ export const AiService = {
      * - 呼び出し元（use-ai-analysis.ts）でハンドリング
      *
      * @param imageFile - アップロードする画像ファイル
+     * @param backgroundType - 背景タイプ（white/canvas/dark-wood/light-wood/marble）
      * @returns 編集結果（成功フラグ、編集後画像URL）
      * @throws APIエラー時
      */
-    async editImage(imageFile: File): Promise<EditImageResponse> {
+    async editImage(imageFile: File, backgroundType: string = "white"): Promise<EditImageResponse> {
         const formData = new FormData();
         formData.append("image", imageFile);
+        formData.append("backgroundType", backgroundType);
 
         const response = await fetch("/api/edit-image", {
             method: "POST",

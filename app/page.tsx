@@ -92,6 +92,8 @@ export default function Home() {
     setPrice,
     status,
     setStatus,
+    backgroundType,
+    setBackgroundType,
     // アクション
     handleImageSelect,
     startAnalysis,
@@ -145,6 +147,8 @@ export default function Home() {
             originalImage={originalImage}
             status={status}
             setStatus={setStatus}
+            backgroundType={backgroundType}
+            setBackgroundType={setBackgroundType}
             onStartAnalysis={startAnalysis}
             onReset={reset}
           />
