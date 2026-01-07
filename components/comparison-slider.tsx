@@ -159,11 +159,9 @@ export function ComparisonSlider({
                     src={imageAfter}
                     alt="After"
                     fill
-                    className="object-cover"
+                    className="object-contain"
                     draggable={false}
                     unoptimized
-                    // シンプルな「プロ風」フィルターをシミュレート
-                    style={{ filter: 'brightness(1.08) contrast(1.05) saturate(1.1)' }}
                 />
                 <div className="absolute top-4 right-4 bg-black/50 text-white px-2 py-1 text-xs rounded-md backdrop-blur-sm">
                     After (AI Processed)
@@ -179,7 +177,7 @@ export function ComparisonSlider({
                     src={imageBefore}
                     alt="Before"
                     fill
-                    className="object-cover"
+                    className="object-contain"
                     draggable={false}
                     unoptimized
                 />
