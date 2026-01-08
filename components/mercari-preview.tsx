@@ -25,8 +25,8 @@
 
 "use client";
 
-import { Camera, Copy, Check } from "lucide-react";
-import React, { useState } from "react";
+import { Camera, Copy, Check, Download } from "lucide-react";
+import React, { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,25 +89,42 @@ export function MercariPreview({
 }: MercariPreviewProps) {
     /**
      * コピー済みフィールド追跡（フィードバック表示用）
-     *
-     * Why setTimeoutでリセットするのか:
-     * - 「コピー済み」表示を一時的に見せてUXを向上
-     * - 2秒後に元のアイコンに戻す
      */
     const [copiedField, setCopiedField] = useState<string | null>(null);
 
     /**
      * クリップボードにコピー
-     *
-     * Why navigator.clipboard.writeTextを使うのか:
-     * - 非同期でセキュアなクリップボードAPI
-     * - 古いdocument.execCommand('copy')より推奨される方法
      */
     const handleCopy = (text: string, field: string) => {
         navigator.clipboard.writeText(text);
         setCopiedField(field);
         setTimeout(() => setCopiedField(null), 2000);
     };
+
+    /**
+     * 画像をダウンロード
+     */
+    const handleDownload = useCallback(async () => {
+        if (!image) return;
+
+        try {
+            // Base64またはURLから画像を取得
+            const response = await fetch(image);
+            const blob = await response.blob();
+
+            // ダウンロードリンクを作成
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${title || "image"}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error("Download failed:", error);
+        }
+    }, [image, title]);
 
     return (
         <div
@@ -120,17 +137,25 @@ export function MercariPreview({
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
                 {/* 左側: 画像エリア */}
                 <div className="bg-gray-50 p-4 lg:p-6">
-                    <Label className="text-sm font-medium text-gray-600 mb-3 block">
-                        商品画像
-                        {originalImage && image && (
-                            <span className="text-xs text-blue-600 ml-2">
-                                (スライドで比較)
-                            </span>
+                    <div className="flex items-center justify-between mb-3">
+                        <Label className="text-sm font-medium text-gray-600">
+                            商品画像
+                        </Label>
+                        {editable && image && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleDownload}
+                                className="h-7 px-2 text-gray-500 hover:text-blue-600"
+                            >
+                                <Download className="h-4 w-4 mr-1" />
+                                <span className="text-xs">ダウンロード</span>
+                            </Button>
                         )}
-                    </Label>
+                    </div>
                     {/* 画像表示の条件分岐 */}
                     {image && originalImage ? (
-                        // Before/After比較スライダー
+                        // Before/After比較
                         <ComparisonSlider
                             imageBefore={originalImage}
                             imageAfter={image}

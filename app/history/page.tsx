@@ -79,6 +79,9 @@ export default function HistoryPage() {
             setItems(data || []);
         }
         setLoading(false);
+
+        // ページの先頭にスクロール
+        window.scrollTo({ top: 0, behavior: "auto" });
     };
 
     // Shift+クリックで範囲選択

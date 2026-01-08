@@ -2,21 +2,13 @@
  * 商品状態選択ステップコンポーネント
  *
  * このコンポーネントの役割:
- * - 画像選択後、商品の状態を選択するステップを表示
+ * - 画像選択後、商品の状態と背景スタイルを選択するステップを表示
  * - 選択された状態はAIプロンプトに使用される
- *
- * Why 状態選択を必須にするのか:
- * - メルカリでは商品状態が必須項目
- * - AIが適切な説明文を生成するために必要
- * - 例: 「新品」と「傷あり」では説明文のトーンが異なる
+ * - 背景スタイルは画像編集時に使用される
  *
  * 設計パターン:
- * - Controlled Component: status, setStatusを親から受け取る
+ * - Controlled Component: status, backgroundTypeを親から受け取る
  * - Callback Props: onStartAnalysis, onResetで親に通知
- *
- * Note:
- * - STATUS_OPTIONSはlib/constants.tsで定義
- * - ItemStatus型はtypes/index.tsで定義
  *
  * Learning:
  * - Radix Select: https://www.radix-ui.com/primitives/docs/components/select
@@ -24,6 +16,7 @@
 
 "use client";
 
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -37,6 +30,17 @@ import { STATUS_OPTIONS } from "@/lib/constants";
 import { ItemStatus } from "@/types";
 
 /**
+ * 背景タイプの定義
+ */
+const BACKGROUND_OPTIONS = [
+    { id: "white", name: "白スタジオ", image: null },
+    { id: "canvas", name: "キャンバス", image: "/backgrounds/canvas.jpeg" },
+    { id: "dark-wood", name: "ダークウッド", image: "/backgrounds/dark-wood.jpeg" },
+    { id: "light-wood", name: "ライトウッド", image: "/backgrounds/light-wood.jpeg" },
+    { id: "marble", name: "大理石", image: "/backgrounds/marble.jpeg" },
+] as const;
+
+/**
  * Props型
  */
 interface StatusSelectionStepProps {
@@ -46,6 +50,10 @@ interface StatusSelectionStepProps {
     status: ItemStatus | "";
     /** 状態変更時のコールバック */
     setStatus: (status: ItemStatus | "") => void;
+    /** 現在選択されている背景タイプ */
+    backgroundType: string;
+    /** 背景タイプ変更時のコールバック */
+    setBackgroundType: (type: string) => void;
     /** 分析開始ボタンクリック時のコールバック */
     onStartAnalysis: () => void;
     /** リセットボタンクリック時のコールバック */
@@ -54,17 +62,13 @@ interface StatusSelectionStepProps {
 
 /**
  * 商品状態選択ステップコンポーネント
- *
- * Why disabled={!status}でボタンを無効化するのか:
- * - 状態未選択での分析開始を防止
- * - UXの向上（無効状態を視覚的に表示）
- *
- * @param props - コンポーネントのprops
  */
 export function StatusSelectionStep({
     originalImage,
     status,
     setStatus,
+    backgroundType,
+    setBackgroundType,
     onStartAnalysis,
     onReset,
 }: StatusSelectionStepProps) {
@@ -95,6 +99,52 @@ export function StatusSelectionStep({
                             ))}
                         </SelectContent>
                     </Select>
+                </div>
+
+                {/* 背景スタイル選択 */}
+                <div className="space-y-2">
+                    <Label>背景スタイル</Label>
+                    <div className="grid grid-cols-5 gap-2">
+                        {BACKGROUND_OPTIONS.map((option) => (
+                            <button
+                                key={option.id}
+                                type="button"
+                                onClick={() => setBackgroundType(option.id)}
+                                className={`
+                                    relative aspect-square rounded-lg overflow-hidden border-2 transition-all
+                                    ${backgroundType === option.id
+                                        ? "border-blue-500 ring-2 ring-blue-200"
+                                        : "border-gray-200 hover:border-gray-300"
+                                    }
+                                `}
+                            >
+                                {option.image ? (
+                                    <Image
+                                        src={option.image}
+                                        alt={option.name}
+                                        fill
+                                        className="object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-white flex items-center justify-center">
+                                        <span className="text-xs text-gray-400">白</span>
+                                    </div>
+                                )}
+                                {backgroundType === option.id && (
+                                    <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
+                                        <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                        選択中: {BACKGROUND_OPTIONS.find((o) => o.id === backgroundType)?.name || "白スタジオ"}
+                    </p>
                 </div>
 
                 {/* 分析開始ボタン */}

@@ -82,9 +82,11 @@ export function ItemCard({
         <div
             className={cn(
                 "bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer",
+                isEditMode && "select-none",
                 className
             )}
             onClick={onClick}
+            draggable={!isEditMode}
         >
             {/* 画像エリア + 価格オーバーレイ */}
             <div className="relative aspect-square bg-gray-100">

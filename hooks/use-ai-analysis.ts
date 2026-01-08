@@ -38,6 +38,8 @@ interface UseAiAnalysisProps {
     selectedFile: File | null;
     /** 商品の状態（プロンプトに使用） */
     status: string;
+    /** 背景タイプ */
+    backgroundType: string;
     /** テキスト生成成功時のコールバック */
     onAnalysisSuccess: (result: AnalyzeResponse) => void;
     /** 画像編集成功時のコールバック */
@@ -60,6 +62,7 @@ interface UseAiAnalysisProps {
 export function useAiAnalysis({
     selectedFile,
     status,
+    backgroundType,
     onAnalysisSuccess,
     onImageEditSuccess,
     onImageEditSkip,
@@ -94,7 +97,7 @@ export function useAiAnalysis({
             // 並列実行：テキスト生成 + 画像編集
             const [analyzeResult, editResult] = await Promise.allSettled([
                 AiService.analyzeItem(selectedFile, status),
-                AiService.editImage(selectedFile),
+                AiService.editImage(selectedFile, backgroundType),
             ]);
 
             // テキスト生成結果のハンドリング
@@ -127,7 +130,7 @@ export function useAiAnalysis({
         } finally {
             setIsEditingImage(false);
         }
-    }, [selectedFile, status, onAnalysisSuccess, onImageEditSuccess, onImageEditSkip]);
+    }, [selectedFile, status, backgroundType, onAnalysisSuccess, onImageEditSuccess, onImageEditSkip]);
 
     return {
         /** テキスト生成中かどうか */
