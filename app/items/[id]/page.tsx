@@ -4,15 +4,17 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { MercariPreview } from "@/components/mercari-preview";
+import { ImageGalleryPreview } from "@/components/features/image-gallery-preview";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import type { Item } from "@/types";
+import type { Item, ItemImage } from "@/types";
 
 export default function ItemDetailPage() {
     const params = useParams();
     const router = useRouter();
     const [item, setItem] = useState<Item | null>(null);
+    const [itemImages, setItemImages] = useState<ItemImage[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -23,23 +25,36 @@ export default function ItemDetailPage() {
 
     useEffect(() => {
         const fetchItem = async () => {
-            const { data, error } = await supabase
+            // 商品データを取得
+            const { data: itemData, error: itemError } = await supabase
                 .from("items")
                 .select("*")
                 .eq("id", params.id)
                 .single();
 
-            if (error) {
-                console.error("Error fetching item:", error);
+            if (itemError) {
+                console.error("Error fetching item:", itemError);
                 toast.error("商品が見つかりませんでした");
                 router.push("/history");
                 return;
             }
 
-            setItem(data);
-            setTitle(data.title || "");
-            setDescription(data.description || "");
-            setPrice(data.price || 0);
+            setItem(itemData);
+            setTitle(itemData.title || "");
+            setDescription(itemData.description || "");
+            setPrice(itemData.price || 0);
+
+            // 複数画像を取得（存在する場合）
+            const { data: imagesData } = await supabase
+                .from("item_images")
+                .select("*")
+                .eq("item_id", params.id)
+                .order("sort_order", { ascending: true });
+
+            if (imagesData && imagesData.length > 0) {
+                setItemImages(imagesData);
+            }
+
             setLoading(false);
         };
 
@@ -86,6 +101,15 @@ export default function ItemDetailPage() {
         return null;
     }
 
+    // 表示する画像配列を作成（GalleryImage形式）
+    const displayImages = itemImages.length > 0
+        ? itemImages.map((img) => ({
+            id: img.id,
+            url: img.image_url,
+            isMain: img.is_main,
+        }))
+        : [{ id: item.id, url: item.image_url, isMain: true }];
+
     return (
         <main className="min-h-screen bg-gray-50">
             <div className="container max-w-6xl mx-auto px-4 py-8">
@@ -100,6 +124,13 @@ export default function ItemDetailPage() {
                     </Button>
                     <h1 className="text-xl font-bold text-gray-900">商品を編集</h1>
                 </div>
+
+                {/* 複数画像がある場合はギャラリー表示 */}
+                {itemImages.length > 1 && (
+                    <div className="mb-6">
+                        <ImageGalleryPreview images={displayImages} />
+                    </div>
+                )}
 
                 {/* Preview with Edit Mode - Same as main page */}
                 <MercariPreview
@@ -128,3 +159,4 @@ export default function ItemDetailPage() {
         </main>
     );
 }
+
