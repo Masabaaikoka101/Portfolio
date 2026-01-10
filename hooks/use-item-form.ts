@@ -162,8 +162,11 @@ export function useItemForm(options?: UseItemFormOptions) {
         }
     }, [selectedFile, setProcessedImage]);
 
+    // AI分析対象の画像を決定（単一選択 or 複数画像のメイン）
+    const analysisTargetFile = selectedFile || multiImages[0]?.file || null;
+
     const { isAnalyzing, isEditingImage, startAnalysis: performAnalysis } = useAiAnalysis({
-        selectedFile,
+        selectedFile: analysisTargetFile,
         status,
         backgroundType,
         onAnalysisSuccess,
