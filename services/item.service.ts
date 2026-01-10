@@ -134,5 +134,102 @@ export const ItemService = {
         const { data: { user }, error } = await supabase.auth.getUser();
         if (error) throw error;
         return user;
+    },
+
+    /**
+     * 商品を複数画像とともに保存
+     *
+     * 処理フロー:
+     * 1. itemsテーブルに商品を保存（メイン画像URLを含む）
+     * 2. item_imagesテーブルに全画像を保存
+     *
+     * @param userId - ユーザーID
+     * @param mainImageUrl - メイン画像のURL
+     * @param additionalImageUrls - 追加画像のURL配列
+     * @param formState - フォーム入力値
+     * @param tags - ハッシュタグ配列（オプション）
+     * @returns 保存した商品のID
+     */
+    async saveItemWithImages(
+        userId: string,
+        mainImageUrl: string,
+        additionalImageUrls: string[],
+        formState: ItemFormState,
+        tags: string[] = []
+    ): Promise<string> {
+        // 1. itemsテーブルに保存
+        const { data: insertedItem, error: dbError } = await supabase
+            .from("items")
+            .insert({
+                user_id: userId,
+                image_url: mainImageUrl,
+                title: formState.title,
+                description: formState.description,
+                price: formState.price,
+                status: formState.status,
+                category: DEFAULTS.category,
+                tags: tags,
+            })
+            .select("id")
+            .single();
+
+        if (dbError || !insertedItem) {
+            throw new Error(`Database save failed: ${dbError?.message}`);
+        }
+
+        const itemId = insertedItem.id;
+
+        // 2. item_imagesテーブルに全画像を保存
+        const allImageUrls = [mainImageUrl, ...additionalImageUrls];
+        const imageRecords = allImageUrls.map((url, index) => ({
+            item_id: itemId,
+            image_url: url,
+            sort_order: index,
+            is_main: index === 0,
+        }));
+
+        const { error: imagesError } = await supabase
+            .from("item_images")
+            .insert(imageRecords);
+
+        if (imagesError) {
+            console.error("Failed to save item images:", imagesError);
+            // メイン画像はitemsテーブルに保存済みなので、ここでは警告のみ
+        }
+
+        return itemId;
+    },
+
+    /**
+     * 複数画像をアップロード
+     *
+     * @param blobs - アップロードするファイル配列
+     * @param userId - ユーザーID
+     * @returns アップロード後のURL配列
+     */
+    async uploadMultipleImages(blobs: Blob[], userId: string): Promise<string[]> {
+        const urls: string[] = [];
+
+        for (let i = 0; i < blobs.length; i++) {
+            const blob = blobs[i];
+            const fileName = `${userId}/${Date.now()}-${i}.png`;
+
+            const { error: uploadError } = await supabase.storage
+                .from("item-images")
+                .upload(fileName, blob, { contentType: "image/png" });
+
+            if (uploadError) {
+                console.error(`Image ${i + 1} upload failed:`, uploadError);
+                continue;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from("item-images")
+                .getPublicUrl(fileName);
+
+            urls.push(publicUrl);
+        }
+
+        return urls;
     }
 };

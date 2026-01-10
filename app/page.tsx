@@ -75,9 +75,13 @@ export default function Home() {
   // フォーム状態
   // =========================================================================
   const {
-    // 画像状態
+    // 画像状態（単一画像）
     originalImage,
     processedImage,
+    // 複数画像状態
+    multiImages,
+    setMultiImages,
+    hasMultiImages,
     // ローディング状態
     isAnalyzing,
     isEditingImage,
@@ -145,6 +149,8 @@ export default function Home() {
         {originalImage && showStatusStep && (
           <StatusSelectionStep
             originalImage={originalImage}
+            images={multiImages}
+            onImagesChange={setMultiImages}
             status={status}
             setStatus={setStatus}
             backgroundType={backgroundType}

@@ -128,10 +128,88 @@ export function useItemStorage() {
         }
     }, [router]);
 
+    /**
+     * 複数画像とともに商品を保存
+     *
+     * @param processedImages - 保存する画像のURL配列（Base64 or blob:）
+     * @param formState - フォーム入力値
+     * @param onSuccess - 成功時のオプショナルコールバック
+     */
+    const saveItemWithImages = useCallback(async (
+        processedImages: string[],
+        formState: ItemFormState,
+        onSuccess?: () => void
+    ) => {
+        // バリデーション
+        if (processedImages.length === 0 || !formState.title) {
+            toast.error("必要な情報が不足しています");
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            // 1. 認証チェック
+            const user = await ItemService.getCurrentUser();
+
+            if (!user) {
+                toast.error("ログインが必要です");
+                router.push("/login");
+                return;
+            }
+
+            // 2. 各画像をBlobに変換
+            const blobs: Blob[] = [];
+            for (const imageUrl of processedImages) {
+                if (imageUrl.startsWith("data:") || imageUrl.startsWith("blob:")) {
+                    const response = await fetch(imageUrl);
+                    const blob = await response.blob();
+                    blobs.push(blob);
+                }
+            }
+
+            if (blobs.length === 0) {
+                throw new Error("No valid images to upload");
+            }
+
+            // 3. 全画像をアップロード
+            const uploadedUrls = await ItemService.uploadMultipleImages(blobs, user.id);
+
+            if (uploadedUrls.length === 0) {
+                throw new Error("Image upload failed");
+            }
+
+            // 4. DBに保存（メイン画像 + 追加画像）
+            const [mainUrl, ...additionalUrls] = uploadedUrls;
+            await ItemService.saveItemWithImages(
+                user.id,
+                mainUrl,
+                additionalUrls,
+                formState
+            );
+
+            // 5. 成功処理
+            toast.success(`${uploadedUrls.length}枚の画像を保存しました！`);
+            onSuccess?.();
+
+            // 6. 履歴ページへ遷移
+            router.push("/history");
+            router.refresh();
+
+        } catch (error) {
+            console.error(error);
+            toast.error("保存に失敗しました");
+        } finally {
+            setIsSaving(false);
+        }
+    }, [router]);
+
     return {
         /** 保存中かどうか */
         isSaving,
-        /** 商品を保存する関数 */
+        /** 商品を保存する関数（単一画像） */
         saveItem,
+        /** 商品を複数画像とともに保存する関数 */
+        saveItemWithImages,
     };
 }
+
