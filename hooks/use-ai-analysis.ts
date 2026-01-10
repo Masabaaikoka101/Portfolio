@@ -34,18 +34,22 @@ import { AnalyzeResponse } from "@/types";
  * - テスト時にコールバックをモック化しやすい
  */
 interface UseAiAnalysisProps {
-    /** 分析対象の画像ファイル */
+    /** 分析対象の画像ファイル（単一画像用） */
     selectedFile: File | null;
+    /** 複数画像配列（一括処理用） */
+    multipleFiles?: File[];
     /** 商品の状態（プロンプトに使用） */
     status: string;
     /** 背景タイプ */
     backgroundType: string;
     /** テキスト生成成功時のコールバック */
     onAnalysisSuccess: (result: AnalyzeResponse) => void;
-    /** 画像編集成功時のコールバック */
+    /** 画像編集成功時のコールバック（単一画像） */
     onImageEditSuccess: (imageUrl: string) => void;
     /** 画像編集スキップ時のコールバック */
     onImageEditSkip: () => void;
+    /** 複数画像編集成功時のコールバック */
+    onMultipleImagesEditSuccess?: (imageUrls: string[]) => void;
 }
 
 /**
@@ -61,31 +65,25 @@ interface UseAiAnalysisProps {
  */
 export function useAiAnalysis({
     selectedFile,
+    multipleFiles,
     status,
     backgroundType,
     onAnalysisSuccess,
     onImageEditSuccess,
     onImageEditSkip,
+    onMultipleImagesEditSuccess,
 }: UseAiAnalysisProps) {
     /** テキスト生成中フラグ */
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     /** 画像編集中フラグ */
     const [isEditingImage, setIsEditingImage] = useState(false);
+    /** 一括処理の進捗（0〜完了枚数） */
+    const [editProgress, setEditProgress] = useState(0);
+    /** 一括処理の総数 */
+    const [editTotal, setEditTotal] = useState(0);
 
     /**
-     * AI分析を開始
-     *
-     * Why Promise.allSettledを使うのか:
-     * - Promise.all: 1つ失敗すると全体が失敗（今回は不適切）
-     * - Promise.allSettled: 各Promiseの成功/失敗を個別に取得
-     * - 画像編集が失敗してもテキスト生成の結果は使える
-     *
-     * 処理フロー:
-     * 1. ローディング状態をON
-     * 2. テキスト生成と画像編集を並列実行
-     * 3. 各結果を個別にハンドリング
-     * 4. コールバックで親に通知
-     * 5. ローディング状態をOFF
+     * AI分析を開始（単一画像用）
      */
     const startAnalysis = useCallback(async () => {
         if (!selectedFile) return;
@@ -132,12 +130,76 @@ export function useAiAnalysis({
         }
     }, [selectedFile, status, backgroundType, onAnalysisSuccess, onImageEditSuccess, onImageEditSkip]);
 
+    /**
+     * 複数画像の一括編集を開始
+     *
+     * Why 順次処理にするのか:
+     * - Gemini APIのレート制限対策
+     * - 順次処理で安定性を優先
+     * - 進捗状態を正確に追跡可能
+     */
+    const startBatchImageEdit = useCallback(async (files: File[]) => {
+        if (files.length === 0) return;
+
+        setIsEditingImage(true);
+        setEditProgress(0);
+        setEditTotal(files.length);
+
+        const results: string[] = [];
+
+        try {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+
+                try {
+                    const result = await AiService.editImage(file, backgroundType);
+
+                    if (result.success && result.imageUrl) {
+                        results.push(result.imageUrl);
+                    } else {
+                        // 失敗時はオリジナル画像のURLを使用
+                        results.push(URL.createObjectURL(file));
+                        toast.info(`画像${i + 1}の編集をスキップしました`);
+                    }
+                } catch (error) {
+                    console.error(`Image ${i + 1} edit failed:`, error);
+                    results.push(URL.createObjectURL(file));
+                }
+
+                setEditProgress(i + 1);
+            }
+
+            if (onMultipleImagesEditSuccess) {
+                onMultipleImagesEditSuccess(results);
+            }
+
+            if (results.length === files.length) {
+                toast.success(`${files.length}枚の画像を加工しました`);
+            }
+
+        } catch (error) {
+            console.error("Batch image edit failed:", error);
+            toast.error("一括画像編集中にエラーが発生しました");
+        } finally {
+            setIsEditingImage(false);
+            setEditProgress(0);
+            setEditTotal(0);
+        }
+    }, [backgroundType, onMultipleImagesEditSuccess]);
+
     return {
         /** テキスト生成中かどうか */
         isAnalyzing,
         /** 画像編集中かどうか */
         isEditingImage,
-        /** 分析を開始する関数 */
+        /** 一括処理の進捗 */
+        editProgress,
+        /** 一括処理の総数 */
+        editTotal,
+        /** 分析を開始する関数（単一画像） */
         startAnalysis,
+        /** 一括画像編集を開始する関数 */
+        startBatchImageEdit,
     };
 }
+

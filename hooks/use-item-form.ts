@@ -5,6 +5,7 @@
  * - 商品出品フローの全状態を統合管理
  * - 画像、フォーム、AI分析、保存の各フックを組み合わせ
  * - UIコンポーネントに統一されたインターフェースを提供
+ * - 複数画像のアップロード・管理に対応
  *
  * Why 統合フックを作るのか:
  * - 関連する状態とロジックを1つにまとめる（Colocation）
@@ -32,6 +33,7 @@ import { AnalyzeResponse, ItemFormState, ItemStatus } from "@/types";
 import { useImageUpload } from "./use-image-upload";
 import { useAiAnalysis } from "./use-ai-analysis";
 import { useItemStorage } from "./use-item-storage";
+import { useMultiImage } from "./use-multi-image";
 
 /**
  * フックのオプション
@@ -80,6 +82,17 @@ export function useItemForm(options?: UseItemFormOptions) {
         handleImageSelect: onImageSelect,
         resetImage,
     } = useImageUpload();
+
+    // =========================================================================
+    // 1.5 複数画像状態（useMultiImage から取得）
+    // =========================================================================
+    const {
+        images: multiImages,
+        setImages: setMultiImages,
+        getMainImage,
+        reset: resetMultiImages,
+        hasImages: hasMultiImages,
+    } = useMultiImage();
 
     // =========================================================================
     // 2. フォーム入力状態
@@ -199,27 +212,35 @@ export function useItemForm(options?: UseItemFormOptions) {
      *
      * What this does:
      * - 画像状態をクリア
+     * - 複数画像状態をクリア
      * - フォーム入力をクリア
      * - 表示ステップをリセット
      */
     const reset = useCallback(() => {
         resetImage();
+        resetMultiImages();
         setShowStatusStep(false);
         setStatus("");
         setBackgroundType("white");
         setTitle("");
         setDescription("");
         setPrice(0);
-    }, [resetImage]);
+    }, [resetImage, resetMultiImages]);
 
     // =========================================================================
     // 戻り値（UIコンポーネントで使用）
     // =========================================================================
     return {
-        // 画像
+        // 画像（単一画像）
         originalImage,
         processedImage,
         selectedFile,
+
+        // 複数画像
+        multiImages,
+        setMultiImages,
+        hasMultiImages,
+        getMainImage,
 
         // ローディング状態
         isAnalyzing,
