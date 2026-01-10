@@ -25,6 +25,7 @@ import {
     closestCenter,
     KeyboardSensor,
     PointerSensor,
+    TouchSensor,
     useSensor,
     useSensors,
     DragEndEvent,
@@ -163,7 +164,13 @@ export function MultiImageUploader({
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
-                distance: 8,
+                distance: 5, // 感度向上（8→5）
+            },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: 150,  // 長押しで発動（モバイル対応）
+                tolerance: 5,
             },
         }),
         useSensor(KeyboardSensor, {

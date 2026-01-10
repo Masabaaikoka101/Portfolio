@@ -39,6 +39,7 @@ import { StatusSelectionStep } from "@/components/features/home/StatusSelectionS
 import { AnalysisLoading } from "@/components/features/home/AnalysisLoading";
 import { PreviewStep } from "@/components/features/home/PreviewStep";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 /**
  * 認証チェック中のローディング画面
@@ -70,6 +71,18 @@ export default function Home() {
   // ファイル選択コンテキスト（ヘッダーからのファイル選択を受け取る）
   // =========================================================================
   const { selectedFile, clearFile } = useFileSelect();
+
+  // =========================================================================
+  // EmptyStateからの複数画像選択ハンドラー
+  // =========================================================================
+  const handleImagesFromEmptyState = (images: import("@/components/features/multi-image-uploader").ImagePreview[]) => {
+    if (images.length > 0) {
+      setMultiImages(images);
+      toast.success("画像を追加しました", {
+        description: "さらに写真を追加できます（最大10枚）",
+      });
+    }
+  };
 
   // =========================================================================
   // フォーム状態
@@ -143,12 +156,14 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50">
       <div className="container max-w-6xl mx-auto px-4 py-8">
         {/* ステップ1: 画像アップロード（初期状態） */}
-        {!originalImage && <EmptyState onImageSelect={handleImageSelect} />}
+        {multiImages.length === 0 && !showStatusStep && (
+          <EmptyState onImagesChange={handleImagesFromEmptyState} />
+        )}
 
         {/* ステップ2: 商品状態選択 */}
-        {originalImage && showStatusStep && (
+        {multiImages.length > 0 && !processedImage && (
           <StatusSelectionStep
-            originalImage={originalImage}
+            originalImage={multiImages[0]?.preview}
             images={multiImages}
             onImagesChange={setMultiImages}
             status={status}
