@@ -26,13 +26,14 @@
 "use client";
 
 import { Camera, Copy, Check, Download } from "lucide-react";
-import React, { useState, useCallback } from "react";
+import React from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ComparisonSlider } from "@/components/comparison-slider";
 import { Label } from "@/components/ui/label";
+import { useMercariPreview } from "@/components/features/preview/use-mercari-preview";
 
 /**
  * Props型
@@ -87,44 +88,7 @@ export function MercariPreview({
     onDescriptionChange,
     onPriceChange,
 }: MercariPreviewProps) {
-    /**
-     * コピー済みフィールド追跡（フィードバック表示用）
-     */
-    const [copiedField, setCopiedField] = useState<string | null>(null);
-
-    /**
-     * クリップボードにコピー
-     */
-    const handleCopy = (text: string, field: string) => {
-        navigator.clipboard.writeText(text);
-        setCopiedField(field);
-        setTimeout(() => setCopiedField(null), 2000);
-    };
-
-    /**
-     * 画像をダウンロード
-     */
-    const handleDownload = useCallback(async () => {
-        if (!image) return;
-
-        try {
-            // Base64またはURLから画像を取得
-            const response = await fetch(image);
-            const blob = await response.blob();
-
-            // ダウンロードリンクを作成
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `${title || "image"}.png`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error("Download failed:", error);
-        }
-    }, [image, title]);
+    const { copiedField, handleCopy, handleDownload } = useMercariPreview();
 
     return (
         <div
@@ -145,7 +109,7 @@ export function MercariPreview({
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={handleDownload}
+                                onClick={() => handleDownload(image!, title)}
                                 className="h-7 px-2 text-gray-500 hover:text-blue-600"
                             >
                                 <Download className="h-4 w-4 mr-1" />
