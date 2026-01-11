@@ -125,10 +125,6 @@ export interface Item {
 
     /**
      * 商品の状態
-     *
-     * Why ItemStatus型を使うのか:
-     * - 型安全により、無効な状態値を防止
-     * - string型だと任意の文字列が入る危険性あり
      */
     status: ItemStatus;
 
@@ -137,6 +133,16 @@ export interface Item {
 
     /** ハッシュタグ配列 */
     tags?: string[];
+
+    /**
+     * 処理ステータス（リアルタイム生成用）
+     * - pending: 作成直後、処理待ち
+     * - processing_text: テキスト生成中
+     * - processing_images: 画像生成中
+     * - completed: 全処理完了
+     * - failed: 処理失敗
+     */
+    processing_status?: "pending" | "processing_text" | "processing_images" | "completed" | "failed";
 
     /** 作成日時（ISO 8601形式） */
     created_at: string;
