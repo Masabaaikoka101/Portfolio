@@ -1,48 +1,18 @@
-/**
- * メインページ（ホーム）
- *
- * このページの役割:
- * - 商品出品フローのメインUI
- * - 画像アップロード → 状態選択 → AI分析 → プレビュー の流れを管理
- *
- * Why クライアントコンポーネントなのか:
- * - useItemFormフック（useState, useEffect）を使用
- * - ユーザーインタラクション（画像選択、分析開始等）が必要
- * - リアルタイムの状態更新が必要
- *
- * 認証について:
- * - useAuthフックでログイン必須チェック
- * - 未ログイン時は自動的にログインページへリダイレクト
- *
- * ファイル選択について:
- * - ヘッダーの「新規作成」からも画像選択可能
- * - FileSelectContextで共有
- *
- * 設計パターン:
- * - Container Component: 状態管理を担当
- * - Presentational Components: 各ステップの表示は専用コンポーネントに委譲
- * - Conditional Rendering: 状態に応じて表示するコンポーネントを切り替え
- *
- * Learning:
- * - Next.js App Router: https://nextjs.org/docs/app
- * - React Conditional Rendering: https://react.dev/learn/conditional-rendering
- */
-
 "use client";
 
-import { useEffect } from "react";
-import { useItemForm } from "@/hooks/use-item-form";
-import { useAuth } from "@/hooks/use-auth";
-import { useFileSelect } from "@/contexts/file-select-context";
-import { EmptyState } from "@/components/features/home/EmptyState";
-import { StatusSelectionStep } from "@/components/features/home/StatusSelectionStep";
-import { AnalysisLoading } from "@/components/features/home/AnalysisLoading";
-import { PreviewStep } from "@/components/features/home/PreviewStep";
-import { Loader2 } from "lucide-react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { ItemCard } from "@/components/item-card";
+import { Button } from "@/components/ui/button";
+import { Plus, Loader2, Trash2, CheckSquare, Square, X } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
+import type { Item } from "@/types";
 
 /**
- * 認証チェック中のローディング画面
+ * 認証チェック中のローディング
  */
 function AuthLoading() {
   return (
@@ -56,140 +26,342 @@ function AuthLoading() {
 }
 
 /**
- * ホームページコンポーネント
+ * ホームページ（商品一覧）
  */
 export default function Home() {
-  // =========================================================================
-  // 認証チェック（ログイン必須）
-  // =========================================================================
+  const router = useRouter();
+
+  // 認証チェック
   const { isLoading: isAuthLoading, isAuthenticated } = useAuth({
-    required: true,
+    requireAuth: true,
     redirectTo: "/login",
   });
 
-  // =========================================================================
-  // ファイル選択コンテキスト（ヘッダーからのファイル選択を受け取る）
-  // =========================================================================
-  const { selectedFile, clearFile } = useFileSelect();
+  const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
 
-  // =========================================================================
-  // EmptyStateからの複数画像選択ハンドラー
-  // =========================================================================
-  const handleImagesFromEmptyState = (images: import("@/components/features/multi-image-uploader").ImagePreview[]) => {
-    if (images.length > 0) {
-      setMultiImages(images);
-      toast.success("画像を追加しました", {
-        description: "さらに写真を追加できます（最大10枚）",
-      });
+  // アンドゥ用
+  const [deletedItems, setDeletedItems] = useState<Item[]>([]);
+  const [showUndo, setShowUndo] = useState(false);
+  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchItems();
+    }
+  }, [isAuthenticated]);
+
+  // キーボードショートカット
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      // Ctrl+A: 全選択（編集モード時）
+      if ((e.ctrlKey || e.metaKey) && e.key === "a") {
+        if (isEditMode && items.length > 0) {
+          e.preventDefault();
+          setSelectedIds(new Set(items.map((item) => item.id)));
+        }
+      }
+
+      // Escape: 選択解除 or 編集モード終了
+      if (e.key === "Escape") {
+        if (selectedIds.size > 0) {
+          setSelectedIds(new Set());
+        } else if (isEditMode) {
+          setIsEditMode(false);
+        }
+      }
+
+      // Delete/Backspace: 選択した商品を削除
+      if ((e.key === "Delete" || e.key === "Backspace") && isEditMode && selectedIds.size > 0) {
+        e.preventDefault();
+        deleteSelected();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isEditMode, items, selectedIds]);
+
+  const fetchItems = async () => {
+    const { data, error } = await supabase
+      .from("items")
+      .select("id, image_url, title, description, price, status, created_at, processing_status")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching items:", error);
+    } else {
+      setItems(data || []);
+    }
+    setLoading(false);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  };
+
+  // Shift+クリックで範囲選択
+  const handleItemClick = (index: number, e: React.MouseEvent) => {
+    if (!isEditMode) {
+      router.push(`/items/${items[index].id}`);
+      return;
+    }
+
+    const itemId = items[index].id;
+
+    if (e.shiftKey && lastClickedIndex !== null) {
+      const start = Math.min(lastClickedIndex, index);
+      const end = Math.max(lastClickedIndex, index);
+      const newSelected = new Set(selectedIds);
+      for (let i = start; i <= end; i++) {
+        newSelected.add(items[i].id);
+      }
+      setSelectedIds(newSelected);
+    } else if (e.ctrlKey || e.metaKey) {
+      const newSelected = new Set(selectedIds);
+      if (newSelected.has(itemId)) {
+        newSelected.delete(itemId);
+      } else {
+        newSelected.add(itemId);
+      }
+      setSelectedIds(newSelected);
+      setLastClickedIndex(index);
+    } else {
+      const newSelected = new Set(selectedIds);
+      if (newSelected.has(itemId)) {
+        newSelected.delete(itemId);
+      } else {
+        newSelected.add(itemId);
+      }
+      setSelectedIds(newSelected);
+      setLastClickedIndex(index);
     }
   };
 
-  // =========================================================================
-  // フォーム状態
-  // =========================================================================
-  const {
-    // 画像状態（単一画像）
-    originalImage,
-    processedImage,
-    // 複数画像状態
-    multiImages,
-    setMultiImages,
-    hasMultiImages,
-    // ローディング状態
-    isAnalyzing,
-    isEditingImage,
-    isSaving,
-    showStatusStep,
-    // フォームフィールド
-    title,
-    setTitle,
-    description,
-    setDescription,
-    price,
-    setPrice,
-    status,
-    setStatus,
-    backgroundType,
-    setBackgroundType,
-    // アクション
-    handleImageSelect,
-    startAnalysis,
-    save,
-    reset,
-  } = useItemForm();
-
-  // =========================================================================
-  // ヘッダーからのファイル選択を処理
-  // =========================================================================
-  useEffect(() => {
-    if (selectedFile) {
-      handleImageSelect(selectedFile);
-      clearFile(); // 処理後にクリア
+  const toggleSelectAll = () => {
+    if (selectedIds.size === items.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(items.map((item) => item.id)));
     }
-  }, [selectedFile, handleImageSelect, clearFile]);
+  };
 
-  // =========================================================================
+  const toggleEditMode = () => {
+    if (isEditMode) {
+      setSelectedIds(new Set());
+      setLastClickedIndex(null);
+    }
+    setIsEditMode(!isEditMode);
+  };
+
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+
+    const itemsToDelete = items.filter((item) => selectedIds.has(item.id));
+    const remainingItems = items.filter((item) => !selectedIds.has(item.id));
+
+    setItems(remainingItems);
+    setDeletedItems(itemsToDelete);
+    setSelectedIds(new Set());
+    setIsEditMode(false);
+    setShowUndo(true);
+
+    if (undoTimeoutRef.current) {
+      clearTimeout(undoTimeoutRef.current);
+    }
+    undoTimeoutRef.current = setTimeout(() => {
+      commitDelete(itemsToDelete);
+    }, 5000);
+
+    toast.success(`${itemsToDelete.length}件を削除しました`, {
+      action: {
+        label: "元に戻す",
+        onClick: () => undoDelete(),
+      },
+      duration: 5000,
+    });
+  };
+
+  const commitDelete = async (itemsToDelete: Item[]) => {
+    setShowUndo(false);
+    setIsDeleting(true);
+
+    try {
+      const { error } = await supabase
+        .from("items")
+        .delete()
+        .in("id", itemsToDelete.map((item) => item.id));
+
+      if (error) {
+        console.error("Delete error:", error);
+        setItems((prev) => [...itemsToDelete, ...prev].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        ));
+        toast.error("削除に失敗しました");
+      }
+    } finally {
+      setIsDeleting(false);
+      setDeletedItems([]);
+    }
+  };
+
+  const undoDelete = () => {
+    if (undoTimeoutRef.current) {
+      clearTimeout(undoTimeoutRef.current);
+    }
+
+    setItems((prev) => [...deletedItems, ...prev].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    ));
+    setDeletedItems([]);
+    setShowUndo(false);
+    toast.info("削除を取り消しました");
+  };
+
   // 認証チェック中
-  // =========================================================================
   if (isAuthLoading) {
     return <AuthLoading />;
   }
 
-  // =========================================================================
-  // 未認証（リダイレクト中）
-  // =========================================================================
   if (!isAuthenticated) {
     return <AuthLoading />;
   }
 
-  // =========================================================================
-  // ローディング中はフルスクリーンローディングを表示
-  // =========================================================================
-  if (isAnalyzing || isEditingImage) {
-    return <AnalysisLoading />;
-  }
-
-  // =========================================================================
-  // メインレンダリング
-  // =========================================================================
   return (
     <main className="min-h-screen bg-gray-50">
-      <div className="container max-w-6xl mx-auto px-4 py-8">
-        {/* ステップ1: 画像アップロード（初期状態） */}
-        {multiImages.length === 0 && !showStatusStep && (
-          <EmptyState onImagesChange={handleImagesFromEmptyState} />
+      <div className="container max-w-5xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">作成一覧</h1>
+            <p className="text-sm text-blue-600 mt-1">
+              作成済みの下書き ({items.length})
+            </p>
+          </div>
+          {items.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleEditMode}
+              className={isEditMode
+                ? "border-red-400 text-red-600 bg-red-50 hover:bg-red-100"
+                : "border-gray-300 text-gray-700 hover:bg-gray-100"
+              }
+            >
+              {isEditMode ? (
+                <>
+                  <X className="h-4 w-4 mr-1" />
+                  キャンセル
+                </>
+              ) : (
+                "選択・削除"
+              )}
+            </Button>
+          )}
+        </div>
+
+        {/* Edit Mode Actions */}
+        {isEditMode && items.length > 0 && (
+          <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200 mb-4 animate-in fade-in duration-200">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleSelectAll}
+                className="text-gray-600"
+              >
+                {selectedIds.size === items.length ? (
+                  <>
+                    <CheckSquare className="h-4 w-4 mr-1 text-blue-600" />
+                    全解除
+                  </>
+                ) : (
+                  <>
+                    <Square className="h-4 w-4 mr-1" />
+                    全選択
+                  </>
+                )}
+              </Button>
+              <span className="text-sm text-gray-500">
+                {selectedIds.size}件選択中
+              </span>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={deleteSelected}
+              disabled={selectedIds.size === 0 || isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-1" />
+              )}
+              削除
+            </Button>
+          </div>
         )}
 
-        {/* ステップ2: 商品状態選択 */}
-        {multiImages.length > 0 && !processedImage && (
-          <StatusSelectionStep
-            originalImage={multiImages[0]?.preview}
-            images={multiImages}
-            onImagesChange={setMultiImages}
-            status={status}
-            setStatus={setStatus}
-            backgroundType={backgroundType}
-            setBackgroundType={setBackgroundType}
-            onStartAnalysis={startAnalysis}
-            onReset={reset}
-          />
-        )}
-
-        {/* ステップ3: プレビュー表示（AI分析完了後） */}
-        {processedImage && (
-          <PreviewStep
-            processedImage={processedImage}
-            originalImage={originalImage!}
-            title={title}
-            description={description}
-            price={price}
-            isSaving={isSaving}
-            setTitle={setTitle}
-            setDescription={setDescription}
-            setPrice={setPrice}
-            onSave={save}
-            onReset={reset}
-          />
+        {/* Content */}
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+          </div>
+        ) : items.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-gray-500 mb-4">まだ作成がありません</p>
+            <Link href="/new">
+              <Button className="bg-gray-900 text-white hover:bg-gray-800">
+                <Plus className="h-4 w-4 mr-2" />
+                はじめての作成をする
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {items.map((item, index) => (
+              <div key={item.id} className="relative">
+                {isEditMode && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleItemClick(index, e);
+                    }}
+                    className="absolute top-2 left-2 z-10 h-6 w-6 rounded-full bg-white shadow-md flex items-center justify-center border border-gray-200"
+                  >
+                    {selectedIds.has(item.id) ? (
+                      <CheckSquare className="h-4 w-4 text-blue-600" />
+                    ) : (
+                      <Square className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
+                )}
+                <ItemCard
+                  imageUrl={item.image_url}
+                  title={item.title}
+                  price={item.price}
+                  status={item.status || "目立った傷や汚れなし"}
+                  createdAt={item.created_at}
+                  isEditMode={isEditMode}
+                  onClick={(e) => handleItemClick(index, e as React.MouseEvent)}
+                  className={
+                    isEditMode && selectedIds.has(item.id)
+                      ? "ring-2 ring-blue-500 scale-[0.98] transition-transform"
+                      : "transition-transform"
+                  }
+                />
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </main>
