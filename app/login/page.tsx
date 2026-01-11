@@ -157,9 +157,10 @@ export default function LoginPage() {
                     toast.success("確認メールを送信しました。メールを確認してください。");
                 }
             }
-        } catch (error: any) {
-            console.warn("Authentication error:", error.message);
-            const errorMessage = translateError(error.message);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            console.warn("Authentication error:", message);
+            const errorMessage = translateError(message);
             toast.error(errorMessage);
         } finally {
             setLoading(false);
@@ -188,8 +189,9 @@ export default function LoginPage() {
 
             toast.success("パスワードリセットのメールを送信しました。メールを確認してください。");
             setShowResetPassword(false);
-        } catch (error: any) {
-            console.warn("Password reset error:", error.message);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            console.warn("Password reset error:", message);
             toast.error("パスワードリセットメールの送信に失敗しました");
         } finally {
             setLoading(false);

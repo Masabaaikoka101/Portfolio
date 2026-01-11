@@ -99,6 +99,7 @@ export function useItemList(): UseItemListReturn {
                 duration: UNDO_TIMEOUT_MS,
             });
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [items]
     );
 
