@@ -231,5 +231,127 @@ export const ItemService = {
         }
 
         return urls;
+    },
+
+    /**
+     * 処理中アイテムを作成（リアルタイム生成フロー用）
+     *
+     * 最初にpending状態で空のアイテムを作成し、
+     * 生成が進むにつれてフィールドを更新していく
+     *
+     * @param userId - ユーザーID
+     * @param status - 商品の状態
+     * @param initialImageUrl - 初期画像URL（オプション、先行アップロード時に使用）
+     * @returns 作成したアイテムのID
+     */
+    async createPendingItem(userId: string, status: string, initialImageUrl?: string): Promise<string> {
+        const { data, error } = await supabase
+            .from("items")
+            .insert({
+                user_id: userId,
+                image_url: initialImageUrl || "", // 初期画像URLがあれば使用
+                title: "",
+                description: "",
+                price: 0,
+                status: status,
+                processing_status: "pending",
+            })
+            .select("id")
+            .single();
+
+        if (error || !data) {
+            throw new Error(`Failed to create pending item: ${error?.message}`);
+        }
+
+        return data.id;
+    },
+
+    /**
+     * アイテムのフィールドを更新
+     *
+     * @param itemId - 更新対象のアイテムID
+     * @param updates - 更新するフィールド
+     */
+    async updateItem(
+        itemId: string,
+        updates: {
+            title?: string;
+            description?: string;
+            price?: number;
+            image_url?: string;
+            processing_status?: "pending" | "processing_text" | "processing_images" | "completed" | "failed";
+            tags?: string[];
+        }
+    ): Promise<void> {
+        const { error } = await supabase
+            .from("items")
+            .update(updates)
+            .eq("id", itemId);
+
+        if (error) {
+            throw new Error(`Failed to update item: ${error.message}`);
+        }
+    },
+
+    /**
+     * アイテムを取得
+     *
+     * @param itemId - 取得対象のアイテムID
+     * @returns アイテムデータ
+     */
+    async getItem(itemId: string) {
+        const { data, error } = await supabase
+            .from("items")
+            .select("*")
+            .eq("id", itemId)
+            .single();
+
+        if (error) {
+            throw new Error(`Failed to get item: ${error.message}`);
+        }
+
+        return data;
+    },
+
+    /**
+     * アイテムの画像を保存
+     *
+     * @param itemId - アイテムID
+     * @param imageUrls - 画像URL配列
+     */
+    async saveItemImages(itemId: string, imageUrls: string[]): Promise<void> {
+        const imageRecords = imageUrls.map((url, index) => ({
+            item_id: itemId,
+            image_url: url,
+            sort_order: index,
+            is_main: index === 0,
+        }));
+
+        const { error } = await supabase
+            .from("item_images")
+            .insert(imageRecords);
+
+        if (error) {
+            console.error("Failed to save item images:", error);
+        }
+    },
+
+    /**
+     * item_imagesテーブルの特定画像を更新
+     *
+     * @param itemId - アイテムID
+     * @param sortOrder - 更新対象の画像のsort_order
+     * @param newImageUrl - 新しい画像URL
+     */
+    async updateItemImage(itemId: string, sortOrder: number, newImageUrl: string): Promise<void> {
+        const { error } = await supabase
+            .from("item_images")
+            .update({ image_url: newImageUrl })
+            .eq("item_id", itemId)
+            .eq("sort_order", sortOrder);
+
+        if (error) {
+            console.error("Failed to update item image:", error);
+        }
     }
 };
