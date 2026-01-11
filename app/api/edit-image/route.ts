@@ -3,7 +3,7 @@
  *
  * このAPIの役割:
  * - 商品画像をメルカリ出品用に最適化
- * - 背景の合成（白スタジオまたはカスタム背景）
+ * - 背景の合成（白スタジオまたはテクスチャ背景）
  *
  * Why 画像編集をAIで行うのか:
  * - 従来の画像処理では複雑な背景合成が困難
@@ -16,11 +16,8 @@
  * - Body: image (File), backgroundType (string)
  *
  * 背景タイプ:
- * - white: 白スタジオ（AI生成）
- * - canvas: キャンバス生地
- * - dark-wood: ダークウッド
- * - light-wood: ライトウッド
- * - marble: 大理石
+ * - studio: 白スタジオ（純粋な白、余計な物体生成禁止）
+ * - canvas, light-wood, dark-wood, marble: 提供されたテクスチャ画像を使用
  *
  * Learning:
  * - Gemini Image Generation: https://ai.google.dev/gemini-api/docs/image-generation
@@ -34,12 +31,12 @@ import * as path from "path";
 /**
  * 背景タイプの定義
  */
-type BackgroundType = "white" | "canvas" | "dark-wood" | "light-wood" | "marble";
+type BackgroundType = "studio" | "canvas" | "dark-wood" | "light-wood" | "marble";
 
 /**
  * 背景ファイルのマッピング
  */
-const BACKGROUND_FILES: Record<Exclude<BackgroundType, "white">, string> = {
+const BACKGROUND_FILES: Record<Exclude<BackgroundType, "studio">, string> = {
     canvas: "canvas.jpeg",
     "dark-wood": "dark-wood.jpeg",
     "light-wood": "light-wood.jpeg",
@@ -52,50 +49,58 @@ const BACKGROUND_FILES: Record<Exclude<BackgroundType, "white">, string> = {
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 /**
- * 共通の絶対厳守ルール（商品保護）
- */
-const PRODUCT_PROTECTION_RULES = `
-【絶対厳守ルール - 商品保護】
-1. 商品自体には一切の変更を加えないでください
-2. 商品の形状、色、テクスチャ、細部（金具、ボタン、ロゴ、タグ、ストラップ、傷、汚れ、しわ等）を完全に保持してください
-3. 商品の全てのピクセルを元のまま維持してください
-4. 商品を回転、傾斜、拡大、縮小しないでください
-5. 商品の一部を省略したり、隠したりしないでください
-`;
-
-/**
- * 白スタジオ用プロンプト
+ * パターン1：白背景（純粋な白のみ・余計な物体生成禁止）
  */
 const WHITE_STUDIO_PROMPT = `
-この画像の背景のみを白い撮影スタジオ背景に置き換えてください。
+あなたはEコマース専門の画像処理AIです。
+以下の商品画像の背景を、完全な白（#FFFFFF）に置換してください。
 
-${PRODUCT_PROTECTION_RULES}
+【入力データ】
+- 商品画像：[画像の入力]
 
-【背景処理】
-- 背景のみを白（#FFFFFF）に置き換え
-- 商品を画像の中央に配置
-- 商品をまっすぐに配置
-- 商品の下に自然な影を追加
+【絶対厳守ルール - 商品保護】
+1. 商品（被写体）のピクセル情報は100%維持する。形状、色、質感、傷、汚れは一切変更しない。
+2. 商品のトリミング、回転、変形は行わない。
 
-商品画像のみを出力してください。
+【禁止事項 - 生成の抑制（重要）】
+1. **余計な物体の描画禁止:** 商品以外のオブジェクト（植物、小道具、文具、装飾品、光の反射エフェクト、テキスト）は一切生成しない。
+2. **背景の純粋化:** 背景にグラデーション、壁と床の境界線、タイルの継ぎ目などを描画しない。均一な白のみとする。
+
+【合成・ライティング指示】
+1. 背景は完全な白（#FFFFFF）とする。
+2. 商品の下（接地面）にのみ、物理的に正確な「接地影（Contact Shadow）」を控えめに追加する。
+3. 商品の周囲に広がる影（ドロップシャドウ）は最小限にし、画面端まで影を伸ばさない。
+
+【出力】
+商品と、その直下の影のみが含まれた画像
 `;
 
 /**
- * カスタム背景用プロンプト
+ * パターン2：リファレンス画像あり（背景テクスチャのみ・空間予測禁止）
  */
-const CUSTOM_BACKGROUND_PROMPT = `
-この商品画像の背景を、提供された背景テクスチャに置き換えてください。
+const TEXTURE_BACKGROUND_PROMPT = `
+あなたはEコマース専門の画像処理AIです。
+商品画像を、提供された「背景テクスチャ」の上に合成してください。
 
-${PRODUCT_PROTECTION_RULES}
+【入力データ】
+- 商品画像：[画像の入力]
+- 背景リファレンス画像：[テクスチャ画像の入力]
 
-【背景置換処理】
-- 元の背景のみを提供された背景テクスチャに置き換え
-- 商品を画像の中央に配置
-- 商品をまっすぐに配置
-- 商品の下に背景に馴染む自然な影を追加
-- 商品と背景のライティングを調和させる
+【絶対厳守ルール - 商品保護】
+1. 商品（被写体）のピクセル情報は100%維持する。形状、色、質感、傷、汚れは一切変更しない。
+2. 商品のトリミング、回転、変形は行わない。
 
-商品画像のみを出力してください。
+【禁止事項 - 余白の予測生成禁止（最重要）】
+1. **風景の捏造禁止:** 提供されたテクスチャ画像以外の要素（部屋の壁、窓、家具、他の雑貨、植物など）を背景の余白に絶対に描画しない。
+2. **パターンの改変禁止:** 背景テクスチャの模様（木目や石目）を、商品に合わせて歪めたり、不自然に引き伸ばしたりしない。
+3. **ノイズの混入禁止:** 何もない空間に、塵や光の粒子、レンズフレアなどを追加しない。
+
+【合成・空間処理の指示】
+1. **平面マッピング:** 提供された背景テクスチャを、商品が置かれている「平らな床面」として画面全体に適用する。奥行きによるボケ（被写界深度）は背景には適用せず、テクスチャを鮮明に保つ。
+2. **影の生成:** 商品の形状に基づき、真上からの照明を想定した自然な落ち影のみを生成する。影は背景テクスチャの上に乗算（Multiply）で合成し、テクスチャの柄を塗りつぶさないようにする。
+
+【出力】
+指定されたテクスチャ背景上の商品画像のみ（余計な装飾なし）
 `;
 
 /**
@@ -105,7 +110,7 @@ export async function POST(req: NextRequest) {
     try {
         const formData = await req.formData();
         const file = formData.get("image") as File;
-        const backgroundType = (formData.get("backgroundType") as BackgroundType) || "white";
+        const backgroundType = (formData.get("backgroundType") as BackgroundType) || "studio"; // default to studio
 
         if (!file) {
             return NextResponse.json(
@@ -122,8 +127,8 @@ export async function POST(req: NextRequest) {
 
         let result;
 
-        if (backgroundType === "white") {
-            // 白スタジオ背景
+        if (backgroundType === "studio") {
+            // パターン1: 白スタジオ背景
             result = await model.generateContent({
                 contents: [
                     {
@@ -139,19 +144,22 @@ export async function POST(req: NextRequest) {
                         ],
                     },
                 ],
+                // @ts-expect-error - generationConfig type definition might be incomplete
                 generationConfig: {
-                    // @ts-expect-error - responseModalities is valid for image generation
-                    responseModalities: ["image", "text"],
+                    responseModalities: ["image"], // 画像のみ要求
                 },
             });
         } else {
-            // カスタム背景
-            const backgroundPath = path.join(
-                process.cwd(),
-                "public",
-                "backgrounds",
-                BACKGROUND_FILES[backgroundType]
-            );
+            // パターン2: テクスチャ背景
+            const fileName = BACKGROUND_FILES[backgroundType];
+
+            // 安全策: ファイルが存在しない場合はcanvasをデフォルトにする
+            let backgroundPath = path.join(process.cwd(), "public", "backgrounds", fileName);
+            if (!fs.existsSync(backgroundPath)) {
+                console.warn(`Background file not found: ${fileName}. Falling back to default.`);
+                // 万が一canvasすらなかったらエラーになるが、最低限canvasはある前提
+                backgroundPath = path.join(process.cwd(), "public", "backgrounds", "canvas.jpeg");
+            }
 
             // 背景画像を読み込み
             const backgroundBuffer = fs.readFileSync(backgroundPath);
@@ -162,7 +170,7 @@ export async function POST(req: NextRequest) {
                     {
                         role: "user",
                         parts: [
-                            { text: CUSTOM_BACKGROUND_PROMPT },
+                            { text: TEXTURE_BACKGROUND_PROMPT },
                             { text: "【商品画像】" },
                             {
                                 inlineData: {
@@ -170,7 +178,7 @@ export async function POST(req: NextRequest) {
                                     mimeType: file.type,
                                 },
                             },
-                            { text: "【背景画像】" },
+                            { text: "【背景リファレンス画像】" },
                             {
                                 inlineData: {
                                     data: base64Background,
@@ -180,9 +188,9 @@ export async function POST(req: NextRequest) {
                         ],
                     },
                 ],
+                // @ts-expect-error - generationConfig type definition might be incomplete
                 generationConfig: {
-                    // @ts-expect-error - responseModalities is valid for image generation
-                    responseModalities: ["image", "text"],
+                    responseModalities: ["image"], // 画像のみ要求
                 },
             });
         }
@@ -190,6 +198,7 @@ export async function POST(req: NextRequest) {
         const response = await result.response;
 
         // レスポンスから画像パートを探す
+        // Gemini 1.5/2.5 Flash outputs image in candidates[0].content.parts
         for (const part of response.candidates?.[0]?.content?.parts || []) {
             if (part.inlineData) {
                 const imageData = part.inlineData.data;

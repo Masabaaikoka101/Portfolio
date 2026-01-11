@@ -5,87 +5,43 @@
  * - 商品画像のAI分析プロセスを管理
  * - テキスト生成と画像編集を並列実行
  * - ローディング状態とエラーハンドリングを担当
- *
- * Why カスタムフックに分離するのか:
- * - 複雑な非同期処理をUIから分離
- * - ローディング状態の管理を一元化
- * - コールバック経由で結果を親に通知（制御の反転）
- *
- * 設計パターン:
- * - Callback Props Pattern: 結果を親コンポーネントに通知
- * - Promise.allSettled: 一方が失敗しても他方は継続
- *
- * Learning:
- * - Promise.allSettled: https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
- * - sonner (Toast): https://sonner.emilkowal.ski/
  */
 
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { AiService } from "@/services/ai.service";
+import { ItemService } from "@/services/item.service";
 import { AnalyzeResponse } from "@/types";
+import { PARALLEL_IMAGE_PROCESSING } from "@/lib/constants";
 
-/**
- * フックのProps型
- *
- * Why コールバック関数を受け取るのか:
- * - 結果の処理方法は呼び出し元が決める（制御の反転）
- * - フック自体は状態管理に専念
- * - テスト時にコールバックをモック化しやすい
- */
 interface UseAiAnalysisProps {
-    /** 分析対象の画像ファイル */
     selectedFile: File | null;
-    /** 商品の状態（プロンプトに使用） */
+    multipleFiles?: File[];
     status: string;
-    /** 背景タイプ */
     backgroundType: string;
-    /** テキスト生成成功時のコールバック */
     onAnalysisSuccess: (result: AnalyzeResponse) => void;
-    /** 画像編集成功時のコールバック */
     onImageEditSuccess: (imageUrl: string) => void;
-    /** 画像編集スキップ時のコールバック */
     onImageEditSkip: () => void;
+    onMultipleImagesEditSuccess?: (imageUrls: string[]) => void;
 }
 
-/**
- * AI分析フック
- *
- * Why isAnalyzingとisEditingImageを分けるのか:
- * - テキスト生成と画像編集は独立したプロセス
- * - テキスト生成が先に完了することが多い（画像生成は処理が重い）
- * - UI側で「テキストは完了、画像は処理中」の表示が可能
- *
- * @param props - コールバック関数と入力データ
- * @returns ローディング状態と分析開始関数
- */
 export function useAiAnalysis({
     selectedFile,
+    multipleFiles,
     status,
     backgroundType,
     onAnalysisSuccess,
     onImageEditSuccess,
     onImageEditSkip,
+    onMultipleImagesEditSuccess,
 }: UseAiAnalysisProps) {
-    /** テキスト生成中フラグ */
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    /** 画像編集中フラグ */
     const [isEditingImage, setIsEditingImage] = useState(false);
+    const [editProgress, setEditProgress] = useState(0);
+    const [editTotal, setEditTotal] = useState(0);
 
     /**
-     * AI分析を開始
-     *
-     * Why Promise.allSettledを使うのか:
-     * - Promise.all: 1つ失敗すると全体が失敗（今回は不適切）
-     * - Promise.allSettled: 各Promiseの成功/失敗を個別に取得
-     * - 画像編集が失敗してもテキスト生成の結果は使える
-     *
-     * 処理フロー:
-     * 1. ローディング状態をON
-     * 2. テキスト生成と画像編集を並列実行
-     * 3. 各結果を個別にハンドリング
-     * 4. コールバックで親に通知
-     * 5. ローディング状態をOFF
+     * 従来のAI分析（プレビュー画面表示用）
      */
     const startAnalysis = useCallback(async () => {
         if (!selectedFile) return;
@@ -94,13 +50,11 @@ export function useAiAnalysis({
         setIsEditingImage(true);
 
         try {
-            // 並列実行：テキスト生成 + 画像編集
             const [analyzeResult, editResult] = await Promise.allSettled([
                 AiService.analyzeItem(selectedFile, status),
                 AiService.editImage(selectedFile, backgroundType),
             ]);
 
-            // テキスト生成結果のハンドリング
             if (analyzeResult.status === "fulfilled") {
                 onAnalysisSuccess(analyzeResult.value);
             } else {
@@ -110,11 +64,9 @@ export function useAiAnalysis({
 
             setIsAnalyzing(false);
 
-            // 画像編集結果のハンドリング
             if (editResult.status === "fulfilled" && editResult.value.success && editResult.value.imageUrl) {
                 onImageEditSuccess(editResult.value.imageUrl);
             } else {
-                // 編集失敗時はオリジナル画像にフォールバック
                 if (editResult.status === "rejected") {
                     console.error("Image editing failed:", editResult.reason);
                 }
@@ -123,7 +75,6 @@ export function useAiAnalysis({
             }
 
         } catch (error) {
-            // 予期せぬエラー（ネットワーク障害など）
             console.error("Unexpected error during analysis:", error);
             toast.error("分析中にエラーが発生しました");
             setIsAnalyzing(false);
@@ -132,12 +83,217 @@ export function useAiAnalysis({
         }
     }, [selectedFile, status, backgroundType, onAnalysisSuccess, onImageEditSuccess, onImageEditSkip]);
 
+    /**
+     * リアルタイム生成（DBに直接更新しながら処理）
+     *
+     * 処理フロー（品質優先版）:
+     * 1. ユーザー取得
+     * 2. 全ての画像を先行アップロード（オリジナル画像として）
+     * 3. pending状態のアイテムを作成（1枚目の画像URLを含む）
+     * 4. item_imagesテーブルに全オリジナル画像を保存
+     * 5. 詳細ページへ遷移（この時点で全画像が表示可能）
+     * 6. テキスト生成（バックグラウンド）
+     * 7. 画像のAI編集（バックグラウンド、編集後のURLでDBを更新）
+     * 8. 完了
+     */
+    const startRealtimeAnalysis = useCallback(async (
+        files: File[],
+        onItemCreated: (itemId: string) => void
+    ) => {
+        if (files.length === 0) return;
+
+        setIsAnalyzing(true);
+        setIsEditingImage(true);
+
+        try {
+            // 1. ユーザー取得
+            const user = await ItemService.getCurrentUser();
+            if (!user) {
+                toast.error("ログインが必要です");
+                return;
+            }
+
+            // 2. 全ての画像を先行アップロード（オリジナル画像として）
+            const originalImageUrls: string[] = [];
+            for (let i = 0; i < files.length; i++) {
+                const imageUrl = await ItemService.uploadImage(files[i], user.id);
+                originalImageUrls.push(imageUrl);
+            }
+
+            // 3. pending状態のアイテムを作成（1枚目の画像URLを含む）
+            const itemId = await ItemService.createPendingItem(user.id, status, originalImageUrls[0]);
+
+            // 4. item_imagesテーブルに全オリジナル画像を保存
+            await ItemService.saveItemImages(itemId, originalImageUrls);
+
+            // 5. 詳細ページへ遷移（この時点で全画像が表示可能）
+            onItemCreated(itemId);
+
+            // 6. テキスト生成開始（バックグラウンド処理）
+            await ItemService.updateItem(itemId, { processing_status: "processing_text" });
+
+            try {
+                const analyzeResult = await AiService.analyzeItem(files[0], status);
+
+                // タイトル・説明・価格をDBに更新
+                await ItemService.updateItem(itemId, {
+                    title: analyzeResult.title,
+                    description: analyzeResult.description,
+                    price: analyzeResult.price,
+                    tags: analyzeResult.tags,
+                });
+
+                setIsAnalyzing(false);
+            } catch (error) {
+                console.error("Text analysis failed:", error);
+                await ItemService.updateItem(itemId, { processing_status: "failed" });
+                toast.error("テキスト生成に失敗しました");
+                return;
+            }
+
+            // 7. 画像のAI編集（バックグラウンド処理）
+            await ItemService.updateItem(itemId, { processing_status: "processing_images" });
+            setEditProgress(0);
+            setEditTotal(files.length);
+
+            if (PARALLEL_IMAGE_PROCESSING) {
+                // ========================================
+                // 並列処理モード（高速だがレート制限に注意）
+                // ========================================
+                const editPromises = files.map(async (file, i) => {
+                    try {
+                        const editResult = await AiService.editImage(file, backgroundType);
+
+                        if (editResult.success && editResult.imageUrl) {
+                            const response = await fetch(editResult.imageUrl);
+                            const blob = await response.blob();
+                            const editedImageUrl = await ItemService.uploadImage(blob, user.id);
+
+                            // items.image_urlを更新（メイン画像のみ）
+                            if (i === 0) {
+                                await ItemService.updateItem(itemId, { image_url: editedImageUrl });
+                            }
+
+                            // item_imagesテーブルの該当画像を更新
+                            await ItemService.updateItemImage(itemId, i, editedImageUrl);
+                        }
+                    } catch (error) {
+                        console.error(`Image ${i + 1} processing failed:`, error);
+                    }
+                });
+
+                // 全画像の処理を同時に実行
+                await Promise.all(editPromises);
+                setEditProgress(files.length);
+            } else {
+                // ========================================
+                // 順次処理モード（安全だが低速）
+                // ========================================
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+
+                    try {
+                        // 画像編集（AI背景生成）
+                        const editResult = await AiService.editImage(file, backgroundType);
+
+                        if (editResult.success && editResult.imageUrl) {
+                            // Base64をBlobに変換してアップロード
+                            const response = await fetch(editResult.imageUrl);
+                            const blob = await response.blob();
+                            const editedImageUrl = await ItemService.uploadImage(blob, user.id);
+
+                            // items.image_urlを更新（メイン画像のみ）
+                            if (i === 0) {
+                                await ItemService.updateItem(itemId, { image_url: editedImageUrl });
+                            }
+
+                            // item_imagesテーブルの該当画像を更新
+                            await ItemService.updateItemImage(itemId, i, editedImageUrl);
+                        }
+                        // 編集失敗時はオリジナル画像がそのまま使われるので何もしない
+
+                    } catch (error) {
+                        console.error(`Image ${i + 1} processing failed:`, error);
+                        // エラー時もオリジナル画像がそのまま使われるので何もしない
+                    }
+
+                    setEditProgress(i + 1);
+                }
+            }
+
+            // 8. 完了
+            await ItemService.updateItem(itemId, { processing_status: "completed" });
+            toast.success("生成が完了しました！");
+
+        } catch (error) {
+            console.error("Realtime analysis failed:", error);
+            toast.error("生成中にエラーが発生しました");
+        } finally {
+            setIsAnalyzing(false);
+            setIsEditingImage(false);
+            setEditProgress(0);
+            setEditTotal(0);
+        }
+    }, [status, backgroundType]);
+
+    /**
+     * 複数画像の一括編集
+     */
+    const startBatchImageEdit = useCallback(async (files: File[]) => {
+        if (files.length === 0) return;
+
+        setIsEditingImage(true);
+        setEditProgress(0);
+        setEditTotal(files.length);
+
+        const results: string[] = [];
+
+        try {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+
+                try {
+                    const result = await AiService.editImage(file, backgroundType);
+
+                    if (result.success && result.imageUrl) {
+                        results.push(result.imageUrl);
+                    } else {
+                        results.push(URL.createObjectURL(file));
+                        toast.info(`画像${i + 1}の編集をスキップしました`);
+                    }
+                } catch (error) {
+                    console.error(`Image ${i + 1} edit failed:`, error);
+                    results.push(URL.createObjectURL(file));
+                }
+
+                setEditProgress(i + 1);
+            }
+
+            if (onMultipleImagesEditSuccess) {
+                onMultipleImagesEditSuccess(results);
+            }
+
+            if (results.length === files.length) {
+                toast.success(`${files.length}枚の画像を加工しました`);
+            }
+
+        } catch (error) {
+            console.error("Batch image edit failed:", error);
+            toast.error("一括画像編集中にエラーが発生しました");
+        } finally {
+            setIsEditingImage(false);
+            setEditProgress(0);
+            setEditTotal(0);
+        }
+    }, [backgroundType, onMultipleImagesEditSuccess]);
+
     return {
-        /** テキスト生成中かどうか */
         isAnalyzing,
-        /** 画像編集中かどうか */
         isEditingImage,
-        /** 分析を開始する関数 */
+        editProgress,
+        editTotal,
         startAnalysis,
+        startBatchImageEdit,
+        startRealtimeAnalysis,
     };
 }

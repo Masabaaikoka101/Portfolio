@@ -3,15 +3,13 @@
  *
  * このコンポーネントの役割:
  * - 画像選択後、商品の状態と背景スタイルを選択するステップを表示
+ * - 複数画像のアップロード・並び替えに対応
  * - 選択された状態はAIプロンプトに使用される
  * - 背景スタイルは画像編集時に使用される
  *
  * 設計パターン:
- * - Controlled Component: status, backgroundTypeを親から受け取る
+ * - Controlled Component: status, backgroundType, imagesを親から受け取る
  * - Callback Props: onStartAnalysis, onResetで親に通知
- *
- * Learning:
- * - Radix Select: https://www.radix-ui.com/primitives/docs/components/select
  */
 
 "use client";
@@ -28,6 +26,10 @@ import {
 } from "@/components/ui/select";
 import { STATUS_OPTIONS } from "@/lib/constants";
 import { ItemStatus } from "@/types";
+import {
+    MultiImageUploader,
+    ImagePreview,
+} from "@/components/features/multi-image-uploader";
 
 /**
  * 背景タイプの定義
@@ -44,8 +46,12 @@ const BACKGROUND_OPTIONS = [
  * Props型
  */
 interface StatusSelectionStepProps {
-    /** 選択中の画像（プレビュー用） */
-    originalImage: string;
+    /** 選択中の画像（単一画像用、後方互換性） */
+    originalImage?: string;
+    /** 複数画像配列（新しいフロー用） */
+    images?: ImagePreview[];
+    /** 複数画像変更時のコールバック */
+    onImagesChange?: (images: ImagePreview[]) => void;
     /** 現在選択されている状態 */
     status: ItemStatus | "";
     /** 状態変更時のコールバック */
@@ -65,6 +71,8 @@ interface StatusSelectionStepProps {
  */
 export function StatusSelectionStep({
     originalImage,
+    images = [],
+    onImagesChange,
     status,
     setStatus,
     backgroundType,
@@ -72,17 +80,36 @@ export function StatusSelectionStep({
     onStartAnalysis,
     onReset,
 }: StatusSelectionStepProps) {
+    // 複数画像モードかどうか
+    const isMultiImageMode = onImagesChange !== undefined;
+
+    // 表示する画像（複数画像モードの場合はメイン画像、それ以外は単一画像）
+    const displayImage = isMultiImageMode
+        ? images.find((img) => img.isMain)?.preview || images[0]?.preview
+        : originalImage;
+
+    // 分析開始可能かどうか
+    const canStartAnalysis = status !== "" && (isMultiImageMode ? images.length > 0 : !!originalImage);
+
     return (
         <div className="max-w-xl mx-auto bg-white p-6 rounded-2xl shadow-sm border border-gray-100 animate-in fade-in duration-300">
             <div className="space-y-4">
-                {/* 画像プレビュー */}
-                <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100 mb-6">
-                    <img
-                        src={originalImage}
-                        alt="Selected"
-                        className="w-full h-full object-contain"
+                {/* 画像プレビュー / マルチ画像アップローダー */}
+                {isMultiImageMode ? (
+                    <MultiImageUploader
+                        images={images}
+                        onImagesChange={onImagesChange}
+                        className="mb-6"
                     />
-                </div>
+                ) : displayImage ? (
+                    <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100 mb-6">
+                        <img
+                            src={displayImage}
+                            alt="Selected"
+                            className="w-full h-full object-contain"
+                        />
+                    </div>
+                ) : null}
 
                 {/* 状態選択 */}
                 <div className="space-y-2">
@@ -144,13 +171,14 @@ export function StatusSelectionStep({
                     </div>
                     <p className="text-xs text-gray-500">
                         選択中: {BACKGROUND_OPTIONS.find((o) => o.id === backgroundType)?.name || "白スタジオ"}
+                        {isMultiImageMode && images.length > 1 && " (全画像に適用)"}
                     </p>
                 </div>
 
                 {/* 分析開始ボタン */}
                 <Button
                     onClick={onStartAnalysis}
-                    disabled={!status}
+                    disabled={!canStartAnalysis}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white py-6 text-lg rounded-full disabled:opacity-50"
                 >
                     AIで分析を開始
@@ -167,3 +195,4 @@ export function StatusSelectionStep({
         </div>
     );
 }
+

@@ -1,18 +1,52 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { MercariPreview } from "@/components/mercari-preview";
+import { ImageGalleryPreview } from "@/components/features/image-gallery-preview";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import type { Item } from "@/types";
+import { cn } from "@/lib/utils";
+import type { Item, ItemImage } from "@/types";
+
+/**
+ * スケルトンローディングコンポーネント
+ */
+// ItemSkeleton removed - simplified UI logic
+
+/**
+ * 処理中テキスト表示
+ */
+function ProcessingStatus({ status }: { status: string }) {
+    const statusMap: Record<string, { text: string; color: string }> = {
+        pending: { text: "準備中...", color: "text-gray-500" },
+        processing_text: { text: "商品情報を生成中...", color: "text-blue-600" },
+        processing_images: { text: "画像を処理中...", color: "text-indigo-600" },
+        completed: { text: "完了", color: "text-green-600" },
+        failed: { text: "エラーが発生しました", color: "text-red-600" },
+    };
+
+    const info = statusMap[status] || statusMap.pending;
+
+    return (
+        <div className="flex items-center gap-2 mb-4">
+            {status !== "completed" && status !== "failed" && (
+                <div className="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+            )}
+            <span className={cn("text-sm font-medium", info.color)}>
+                {info.text}
+            </span>
+        </div>
+    );
+}
 
 export default function ItemDetailPage() {
     const params = useParams();
     const router = useRouter();
     const [item, setItem] = useState<Item | null>(null);
+    const [itemImages, setItemImages] = useState<ItemImage[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -21,32 +55,97 @@ export default function ItemDetailPage() {
     const [description, setDescription] = useState("");
     const [price, setPrice] = useState(0);
 
+    /**
+     * アイテム取得関数
+     */
+    const fetchItem = useCallback(async () => {
+        const { data: itemData, error: itemError } = await supabase
+            .from("items")
+            .select("*")
+            .eq("id", params.id)
+            .single();
+
+        if (itemError) {
+            console.error("Error fetching item:", itemError);
+            toast.error("商品が見つかりませんでした");
+            router.push("/history");
+            return null;
+        }
+
+        return itemData;
+    }, [params.id, router]);
+
+    /**
+     * 画像取得関数
+     */
+    const fetchImages = useCallback(async () => {
+        const { data: imagesData } = await supabase
+            .from("item_images")
+            .select("*")
+            .eq("item_id", params.id)
+            .order("sort_order", { ascending: true });
+
+        return imagesData || [];
+    }, [params.id]);
+
+    /**
+     * 初回ロード & ポーリング
+     */
     useEffect(() => {
-        const fetchItem = async () => {
-            const { data, error } = await supabase
-                .from("items")
-                .select("*")
-                .eq("id", params.id)
-                .single();
+        let pollInterval: NodeJS.Timeout | null = null;
 
-            if (error) {
-                console.error("Error fetching item:", error);
-                toast.error("商品が見つかりませんでした");
-                router.push("/history");
-                return;
-            }
+        const loadData = async () => {
+            const itemData = await fetchItem();
+            if (!itemData) return;
 
-            setItem(data);
-            setTitle(data.title || "");
-            setDescription(data.description || "");
-            setPrice(data.price || 0);
+            setItem(itemData);
+            setTitle(itemData.title || "");
+            setDescription(itemData.description || "");
+            setPrice(itemData.price || 0);
+
+            // アイテムデータが取れた時点で描画を開始する（First Paint高速化）
+            // これにより、item.image_url（元画像）が即座に表示される
             setLoading(false);
+
+            // 画像リストは非同期で取得して後から更新
+            const images = await fetchImages();
+            setItemImages(images);
+
+            // 処理中の場合はポーリング開始
+            if (itemData.processing_status && itemData.processing_status !== "completed" && itemData.processing_status !== "failed") {
+                pollInterval = setInterval(async () => {
+                    const updatedItem = await fetchItem();
+                    if (updatedItem) {
+                        setItem(updatedItem);
+                        // テキストが生成されたら反映
+                        if (updatedItem.title && !title) setTitle(updatedItem.title);
+                        if (updatedItem.description && !description) setDescription(updatedItem.description);
+                        if (updatedItem.price && !price) setPrice(updatedItem.price);
+
+                        // 画像も更新
+                        const updatedImages = await fetchImages();
+                        setItemImages(updatedImages);
+
+                        // 完了したらポーリング停止
+                        if (updatedItem.processing_status === "completed" || updatedItem.processing_status === "failed") {
+                            if (pollInterval) clearInterval(pollInterval);
+                            if (updatedItem.processing_status === "completed") {
+                                toast.success("生成が完了しました！");
+                            }
+                        }
+                    }
+                }, 2000); // 2秒ごとにポーリング
+            }
         };
 
         if (params.id) {
-            fetchItem();
+            loadData();
         }
-    }, [params.id, router]);
+
+        return () => {
+            if (pollInterval) clearInterval(pollInterval);
+        };
+    }, [params.id, fetchItem, fetchImages, title, description, price]);
 
     const handleSave = async () => {
         if (!item) return;
@@ -74,10 +173,25 @@ export default function ItemDetailPage() {
         }
     };
 
+    // ローディング中
     if (loading) {
         return (
-            <main className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+            <main className="min-h-screen bg-gray-50 h-screen overflow-hidden flex flex-col">
+                <div className="container max-w-6xl mx-auto px-4 py-8 flex-1 flex flex-col min-h-0">
+                    <div className="flex items-center gap-4 mb-6">
+                        <Button variant="ghost" size="icon" onClick={() => router.push("/")}>
+                            <ArrowLeft className="h-5 w-5" />
+                        </Button>
+                        <h1 className="text-xl font-bold text-gray-900">読み込み中...</h1>
+                    </div>
+                    {/* ローディング中でもプレビュー枠を表示する（中身は空またはスケルトン） */}
+                    <MercariPreview
+                        title=""
+                        description=""
+                        price={0}
+                        isLoading={true}
+                    />
+                </div>
             </main>
         );
     }
@@ -86,44 +200,60 @@ export default function ItemDetailPage() {
         return null;
     }
 
+    // 処理中かどうか
+    const isProcessing = item.processing_status && item.processing_status !== "completed" && item.processing_status !== "failed";
+
+    // 表示する画像配列を作成
+    const displayImages = itemImages.length > 0
+        ? itemImages.map((img) => ({
+            id: img.id,
+            url: img.image_url,
+            isMain: img.is_main,
+        }))
+        : item.image_url ? [{ id: item.id, url: item.image_url, isMain: true }] : [];
+
+    // アップロードされた元の画像URL（最初の画像をオリジナルとして扱う）
+    const originalImage = displayImages[0]?.url;
+
     return (
-        <main className="min-h-screen bg-gray-50">
-            <div className="container max-w-6xl mx-auto px-4 py-8">
+        <main className="min-h-screen bg-gray-50 h-screen overflow-hidden flex flex-col">
+            <div className="container max-w-6xl mx-auto px-4 py-8 flex-1 flex flex-col min-h-0">
                 {/* Header */}
                 <div className="flex items-center gap-4 mb-6">
                     <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => router.push("/history")}
+                        onClick={() => router.push(isProcessing ? "/" : "/history")}
                     >
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
-                    <h1 className="text-xl font-bold text-gray-900">商品を編集</h1>
+                    <h1 className="text-xl font-bold text-gray-900">
+                        {isProcessing ? "生成中..." : "商品を編集"}
+                    </h1>
                 </div>
 
-                {/* Preview with Edit Mode - Same as main page */}
+                {/* 処理ステータス表示 */}
+                {isProcessing && <ProcessingStatus status={item.processing_status!} />}
+
+                {/* Preview with Edit Mode */}
                 <MercariPreview
-                    image={item.image_url}
+                    image={displayImages[0]?.url || item.image_url}
+                    originalImage={originalImage} // 元画像を渡す
+                    multiImages={displayImages.length > 0 ? displayImages.map(img => img.url) : item.image_url ? [item.image_url] : undefined}
                     title={title}
                     description={description}
                     price={price}
-                    editable={true}
+                    editable={!isProcessing}
                     onTitleChange={setTitle}
                     onDescriptionChange={setDescription}
                     onPriceChange={setPrice}
                     onSave={handleSave}
                     isSaving={saving}
+                    isProcessingImages={item.processing_status === "processing_images"}
+                    isProcessingText={item.processing_status === "processing_text" || item.processing_status === "pending"}
                 />
 
-                {/* Back Link */}
-                <div className="flex justify-center pt-6">
-                    <button
-                        onClick={() => router.push("/history")}
-                        className="text-sm text-gray-500 hover:text-gray-700 underline"
-                    >
-                        キャンセル
-                    </button>
-                </div>
+                {/* Back Link Removed per user request */}
             </div>
         </main>
     );

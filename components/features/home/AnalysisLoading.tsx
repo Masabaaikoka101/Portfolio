@@ -1,27 +1,10 @@
 /**
  * AI分析ローディングコンポーネント
  *
- * このコンポーネントの役割:
- * - AI分析中のローディング画面を表示
- * - ユーザーに待機状態を視覚的に伝える
- *
- * Why 専用のローディングコンポーネントを作るのか:
- * - AI処理は数秒〜十数秒かかるため、単純なスピナーでは不十分
- * - プレミアム感のあるアニメーションでUXを向上
- * - ブランドイメージの構築
- *
- * アニメーション設計:
- * - mounted状態でフェードイン（初期表示時のチラつき防止）
- * - ドットアニメーション（「生成中...」の視覚的フィードバック）
- * - プログレスバー（処理が進行中であることを示す）
- *
- * Alternatives:
- * - Skeleton Loading: ページ構造が決まっている場合に有効
- * - Spinner: シンプルだが、長時間待機には不向き
- *
- * Learning:
- * - CSS Keyframes: https://developer.mozilla.org/ja/docs/Web/CSS/@keyframes
- * - styled-jsx: https://github.com/vercel/styled-jsx
+ * モダンでミニマルなシマーローディングを実装
+ * - グラデーションシマー効果
+ * - 小さく洗練されたテキスト
+ * - スケルトンプレビュー
  */
 
 "use client";
@@ -31,70 +14,79 @@ import { cn } from "@/lib/utils";
 
 /**
  * AI分析ローディングコンポーネント
- *
- * Why mounted状態を使うのか:
- * - SSR時のハイドレーションミスマッチを防止
- * - マウント後にアニメーションを開始することで滑らかな表示
  */
 export function AnalysisLoading() {
-    /** マウント完了フラグ（フェードイン用） */
     const [mounted, setMounted] = useState(false);
 
-    /** ドットアニメーション用状態 */
-    const [dots, setDots] = useState("");
-
-    /**
-     * アニメーション初期化
-     *
-     * What this does:
-     * 1. マウント完了を設定（フェードイン開始）
-     * 2. 500msごとにドットを更新（...→空→.→..→...）
-     */
     useEffect(() => {
         setMounted(true);
-        const interval = setInterval(() => {
-            setDots((prev) => (prev.length >= 3 ? "" : prev + "."));
-        }, 500);
-        return () => clearInterval(interval);
     }, []);
 
     return (
-        <main className="min-h-screen bg-white flex items-center justify-center">
+        <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
             <div
                 className={cn(
-                    "flex flex-col items-center transition-all duration-1000 ease-out",
+                    "flex flex-col items-center transition-all duration-700 ease-out",
                     mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
                 )}
             >
-                {/* メインテキスト */}
-                <div className="relative">
-                    {/* 背景のグロー効果 */}
-                    <div className="absolute inset-0 bg-blue-100 rounded-full blur-xl opacity-50 animate-pulse" />
-                    <h2 className="relative text-4xl md:text-5xl font-bold tracking-tight text-gray-900 mb-6">
-                        生成中
-                        <span className="inline-block w-8 text-blue-600">{dots}</span>
-                    </h2>
+                {/* スケルトンプレビューカード */}
+                <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 p-6 w-full max-w-sm">
+                    {/* 画像スケルトン with シマー */}
+                    <div className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 mb-4">
+                        <div className="absolute inset-0 shimmer-effect" />
+                        {/* 中央のパルスリング */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="relative">
+                                <div className="w-16 h-16 rounded-full border-4 border-gray-200" />
+                                <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-transparent border-t-blue-500 animate-spin" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* テキストスケルトン */}
+                    <div className="space-y-3">
+                        <div className="h-4 bg-gray-100 rounded-full w-3/4 shimmer-effect" />
+                        <div className="h-3 bg-gray-100 rounded-full w-full shimmer-effect" />
+                        <div className="h-3 bg-gray-100 rounded-full w-5/6 shimmer-effect" />
+                    </div>
+
+                    {/* ステータステキスト */}
+                    <div className="mt-6 text-center">
+                        <p className="text-sm font-medium text-gray-500 tracking-wide">
+                            AIが分析中
+                        </p>
+                        <div className="flex items-center justify-center gap-1 mt-2">
+                            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                        </div>
+                    </div>
                 </div>
-
-                {/* サブテキスト */}
-                <p className="text-gray-400 text-sm font-medium tracking-wide uppercase">
-                    AI IS ANALYZING YOUR ITEM
-                </p>
-
-                {/* プログレスバー */}
-                <div className="mt-12 w-48 h-1 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-600 animate-[loading_1.5s_ease-in-out_infinite]" />
-                </div>
-
-                {/* カスタムキーフレームアニメーション */}
-                <style jsx global>{`
-          @keyframes loading {
-            0% { transform: translateX(-100%); }
-            50% { transform: translateX(0%); }
-            100% { transform: translateX(100%); }
-          }
-        `}</style>
             </div>
+
+            {/* シマーエフェクト用CSS */}
+            <style jsx>{`
+                .shimmer-effect {
+                    background: linear-gradient(
+                        90deg,
+                        transparent 0%,
+                        rgba(255, 255, 255, 0.4) 50%,
+                        transparent 100%
+                    );
+                    background-size: 200% 100%;
+                    animation: shimmer 1.5s infinite;
+                }
+
+                @keyframes shimmer {
+                    0% {
+                        background-position: -200% 0;
+                    }
+                    100% {
+                        background-position: 200% 0;
+                    }
+                }
+            `}</style>
         </main>
     );
 }

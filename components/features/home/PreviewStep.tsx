@@ -39,6 +39,8 @@ interface PreviewStepProps {
     processedImage: string;
     /** オリジナル画像URL（比較用） */
     originalImage: string;
+    /** 複数画像データ（追加） */
+    images?: { preview: string }[];
     /** 商品タイトル */
     title: string;
     /** 商品説明文 */
@@ -47,6 +49,8 @@ interface PreviewStepProps {
     price: number;
     /** 保存中フラグ */
     isSaving: boolean;
+    /** 画像編集中フラグ */
+    isEditingImage?: boolean;
     /** タイトル変更コールバック */
     setTitle: (value: string) => void;
     /** 説明文変更コールバック */
@@ -57,6 +61,14 @@ interface PreviewStepProps {
     onSave: () => void;
     /** リセットボタンクリックコールバック */
     onReset: () => void;
+    /** オリジナル画像に戻すコールバック */
+    onRestore?: () => void;
+    /** 追加画像の一括背景生成コールバック */
+    onProcessAdditionalImages?: () => void;
+    /** 一括処理の進捗 */
+    editProgress?: number;
+    /** 一括処理の総数 */
+    editTotal?: number;
 }
 
 /**
@@ -67,16 +79,31 @@ interface PreviewStepProps {
 export function PreviewStep({
     processedImage,
     originalImage,
+    images = [],
     title,
     description,
     price,
     isSaving,
+    isEditingImage = false,
     setTitle,
     setDescription,
     setPrice,
     onSave,
     onReset,
+    onRestore,
+    onProcessAdditionalImages,
+    editProgress = 0,
+    editTotal = 0,
 }: PreviewStepProps) {
+    // 表示用画像リストの生成
+    // AI処理済み画像がある場合、リストの先頭（メイン画像）を置き換える
+    const displayImages = images.length > 0
+        ? images.map((img, index) => index === 0 && processedImage ? processedImage : img.preview)
+        : [processedImage];
+
+    // 一括生成ボタンの表示条件（2枚以上の画像がある場合）
+    const canProcessAdditional = images.length > 1 && onProcessAdditionalImages;
+
     return (
         <div className="space-y-6 animate-in fade-in duration-700">
             {/* メインプレビュー */}
@@ -88,7 +115,8 @@ export function PreviewStep({
                     </span>
                 </h2>
                 <MercariPreview
-                    image={processedImage}
+                    image={processedImage} // 後方互換性のため維持
+                    images={displayImages} // 新規実装: 複数画像リスト
                     originalImage={originalImage}
                     title={title}
                     description={description}
@@ -99,6 +127,13 @@ export function PreviewStep({
                     onTitleChange={setTitle}
                     onDescriptionChange={setDescription}
                     onPriceChange={setPrice}
+                    onRestore={onRestore}
+                    canRestore={!!processedImage && !!originalImage}
+                    onProcessAdditionalImages={onProcessAdditionalImages}
+                    canProcessAdditional={canProcessAdditional}
+                    editProgress={editProgress}
+                    editTotal={editTotal}
+                    isEditingImage={isEditingImage}
                 />
             </div>
 

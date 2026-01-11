@@ -48,6 +48,41 @@ export type ItemStatus =
     | "全体的に状態が悪い";
 
 // ============================================================================
+// 商品画像型（DBスキーマ対応）
+// ============================================================================
+/**
+ * 商品画像データ型
+ *
+ * Why この型を分離するのか:
+ * - 1商品に対して複数の画像を紐付け可能にする
+ * - 画像の並び順とメイン画像の管理を型安全に行う
+ *
+ * DB設計の意図:
+ * - item_id: 商品との紐付け（外部キー）
+ * - sort_order: 画像の表示順序
+ * - is_main: メイン画像フラグ（検索結果などで使用）
+ */
+export interface ItemImage {
+    /** UUID v4形式。Supabaseが自動生成 */
+    id: string;
+
+    /** 紐付く商品のID */
+    item_id: string;
+
+    /** Supabase Storageの公開URL */
+    image_url: string;
+
+    /** 表示順序（0始まり） */
+    sort_order: number;
+
+    /** メイン画像フラグ */
+    is_main: boolean;
+
+    /** 作成日時（ISO 8601形式） */
+    created_at: string;
+}
+
+// ============================================================================
 // 商品型（DBスキーマ対応）
 // ============================================================================
 /**
@@ -59,7 +94,8 @@ export type ItemStatus =
  *
  * DB設計の意図:
  * - user_id: 認証済みユーザーとの紐付け（RLS対応）
- * - image_url: Supabase Storageの公開URL
+ * - image_url: Supabase Storageの公開URL（メイン画像、後方互換性のため残す）
+ * - images: 複数画像対応（item_imagesテーブルから取得）
  * - tags: PostgreSQLのARRAY型を使用（正規化より検索性を優先）
  *
  * Learning:
@@ -72,8 +108,11 @@ export interface Item {
     /** 商品を登録したユーザーのID。RLSポリシーで使用 */
     user_id?: string;
 
-    /** Supabase Storageの公開URL */
+    /** Supabase Storageの公開URL（メイン画像、後方互換性のため残す） */
     image_url: string;
+
+    /** 複数画像配列（item_imagesテーブルから取得） */
+    images?: ItemImage[];
 
     /** 商品タイトル（最大40文字） */
     title: string;
@@ -86,10 +125,6 @@ export interface Item {
 
     /**
      * 商品の状態
-     *
-     * Why ItemStatus型を使うのか:
-     * - 型安全により、無効な状態値を防止
-     * - string型だと任意の文字列が入る危険性あり
      */
     status: ItemStatus;
 
@@ -98,6 +133,16 @@ export interface Item {
 
     /** ハッシュタグ配列 */
     tags?: string[];
+
+    /**
+     * 処理ステータス（リアルタイム生成用）
+     * - pending: 作成直後、処理待ち
+     * - processing_text: テキスト生成中
+     * - processing_images: 画像生成中
+     * - completed: 全処理完了
+     * - failed: 処理失敗
+     */
+    processing_status?: "pending" | "processing_text" | "processing_images" | "completed" | "failed";
 
     /** 作成日時（ISO 8601形式） */
     created_at: string;

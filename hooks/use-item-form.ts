@@ -5,6 +5,7 @@
  * - 商品出品フローの全状態を統合管理
  * - 画像、フォーム、AI分析、保存の各フックを組み合わせ
  * - UIコンポーネントに統一されたインターフェースを提供
+ * - 複数画像のアップロード・管理に対応
  *
  * Why 統合フックを作るのか:
  * - 関連する状態とロジックを1つにまとめる（Colocation）
@@ -28,10 +29,12 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { toast } from "sonner";
 import { AnalyzeResponse, ItemFormState, ItemStatus } from "@/types";
 import { useImageUpload } from "./use-image-upload";
 import { useAiAnalysis } from "./use-ai-analysis";
 import { useItemStorage } from "./use-item-storage";
+import { useMultiImage } from "./use-multi-image";
 
 /**
  * フックのオプション
@@ -82,6 +85,17 @@ export function useItemForm(options?: UseItemFormOptions) {
     } = useImageUpload();
 
     // =========================================================================
+    // 1.5 複数画像状態（useMultiImage から取得）
+    // =========================================================================
+    const {
+        images: multiImages,
+        setImages: setMultiImages,
+        getMainImage,
+        reset: resetMultiImages,
+        hasImages: hasMultiImages,
+    } = useMultiImage();
+
+    // =========================================================================
     // 2. フォーム入力状態
     // =========================================================================
     /**
@@ -94,8 +108,8 @@ export function useItemForm(options?: UseItemFormOptions) {
     const [description, setDescription] = useState("");
     const [price, setPrice] = useState(0);
     const [status, setStatus] = useState<ItemStatus | "">("");
-    /** 背景タイプ（デフォルト: 白スタジオ） */
-    const [backgroundType, setBackgroundType] = useState("white");
+    /** 背景タイプ（初期値: 未選択） */
+    const [backgroundType, setBackgroundType] = useState("");
 
     /** 商品状態選択ステップの表示フラグ */
     const [showStatusStep, setShowStatusStep] = useState(false);
@@ -149,13 +163,43 @@ export function useItemForm(options?: UseItemFormOptions) {
         }
     }, [selectedFile, setProcessedImage]);
 
-    const { isAnalyzing, isEditingImage, startAnalysis: performAnalysis } = useAiAnalysis({
-        selectedFile,
+    // AI分析対象の画像を決定（単一選択 or 複数画像のメイン）
+    const analysisTargetFile = selectedFile || multiImages[0]?.file || null;
+
+    /**
+     * 複数画像の一括編集成功時のコールバック
+     * multiImagesの各画像のpreviewを更新する
+     */
+    const onMultipleImagesEditSuccess = useCallback((imageUrls: string[]) => {
+        setMultiImages(prev => {
+            const newImages = [...prev];
+            // 2枚目以降の画像を更新（メイン画像は既に処理済み）
+            imageUrls.forEach((url, idx) => {
+                const targetIdx = idx + 1; // 2枚目から開始
+                if (newImages[targetIdx]) {
+                    newImages[targetIdx] = { ...newImages[targetIdx], preview: url };
+                }
+            });
+            return newImages;
+        });
+    }, [setMultiImages]);
+
+    const {
+        isAnalyzing,
+        isEditingImage,
+        editProgress,
+        editTotal,
+        startAnalysis: performAnalysis,
+        startBatchImageEdit,
+        startRealtimeAnalysis,
+    } = useAiAnalysis({
+        selectedFile: analysisTargetFile,
         status,
         backgroundType,
         onAnalysisSuccess,
         onImageEditSuccess,
         onImageEditSkip,
+        onMultipleImagesEditSuccess,
     });
 
     /**
@@ -165,6 +209,29 @@ export function useItemForm(options?: UseItemFormOptions) {
         setShowStatusStep(false);
         await performAnalysis();
     }, [performAnalysis]);
+
+    /**
+     * リアルタイム生成開始（即座に詳細ページへ遷移）
+     *
+     * @param onNavigate - アイテムID取得後に呼び出す遷移用コールバック
+     */
+    const startRealtimeFlow = useCallback(async (
+        onNavigate: (itemId: string) => void
+    ) => {
+        // 全ての画像ファイルを収集
+        const allFiles = multiImages.map(img => img.file);
+        if (allFiles.length === 0 && selectedFile) {
+            allFiles.push(selectedFile);
+        }
+
+        if (allFiles.length === 0) {
+            toast.error("画像が選択されていません");
+            return;
+        }
+
+        setShowStatusStep(false);
+        await startRealtimeAnalysis(allFiles, onNavigate);
+    }, [multiImages, selectedFile, startRealtimeAnalysis]);
 
     // =========================================================================
     // 4. 保存処理（useItemStorage から取得）
@@ -192,40 +259,87 @@ export function useItemForm(options?: UseItemFormOptions) {
     }, [processedImage, title, description, price, status, performSave, options?.onSuccess]);
 
     // =========================================================================
-    // 5. リセット処理
+    // 5. 非破壊リストア処理（AI生成画像を破棄してオリジナルに戻す）
+    // =========================================================================
+    /**
+     * AI生成画像を破棄してオリジナル画像に戻す
+     *
+     * Why 非破壊（Non-destructive）方式:
+     * - オリジナル画像は常に保持されている
+     * - processedImageをnullにすることで、UIは自動的にoriginalImageを表示
+     * - 再生成時も常にオリジナルから生成するため、画質劣化（テセウスの船）を防止
+     */
+    const restoreOriginalImage = useCallback(() => {
+        setProcessedImage(null);
+    }, [setProcessedImage]);
+
+    // =========================================================================
+    // 6. リセット処理
     // =========================================================================
     /**
      * 全状態をリセット
      *
      * What this does:
      * - 画像状態をクリア
+     * - 複数画像状態をクリア
      * - フォーム入力をクリア
      * - 表示ステップをリセット
      */
     const reset = useCallback(() => {
         resetImage();
+        resetMultiImages();
         setShowStatusStep(false);
         setStatus("");
         setBackgroundType("white");
         setTitle("");
         setDescription("");
         setPrice(0);
-    }, [resetImage]);
+    }, [resetImage, resetMultiImages]);
+
+    // =========================================================================
+    // 7. 追加画像の一括背景生成
+    // =========================================================================
+    /**
+     * 2枚目以降の画像の背景を一括で生成する
+     *
+     * Why 別関数にするのか:
+     * - メイン画像のAI生成が完了してから呼び出す
+     * - 即時全画像占有は待機時間が長いため
+     * - ユーザーが任意のタイミングで実行できる
+     */
+    const processAdditionalImages = useCallback(async () => {
+        // 2枚目以降の画像Fileを取得
+        const additionalFiles = multiImages.slice(1).map(img => img.file);
+        if (additionalFiles.length === 0) {
+            toast.info("追加の画像がありません");
+            return;
+        }
+        await startBatchImageEdit(additionalFiles);
+    }, [multiImages, startBatchImageEdit]);
 
     // =========================================================================
     // 戻り値（UIコンポーネントで使用）
     // =========================================================================
     return {
-        // 画像
+        // 画像（単一画像）
         originalImage,
         processedImage,
         selectedFile,
+
+        // 複数画像
+        multiImages,
+        setMultiImages,
+        hasMultiImages,
+        getMainImage,
 
         // ローディング状態
         isAnalyzing,
         isEditingImage,
         isSaving,
         showStatusStep,
+        // 一括処理の進捗
+        editProgress,
+        editTotal,
 
         // フォームフィールド
         title,
@@ -242,7 +356,10 @@ export function useItemForm(options?: UseItemFormOptions) {
         // アクション
         handleImageSelect,
         startAnalysis,
+        startRealtimeFlow,
         save,
         reset,
+        restoreOriginalImage,
+        processAdditionalImages,
     };
 }
