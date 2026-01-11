@@ -23,6 +23,7 @@
 
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import type { ItemStatus } from "@/types";
 
 /**
  * Props型
@@ -35,7 +36,7 @@ interface ItemCardProps {
     /** 価格（円） */
     price: number;
     /** 商品の状態 */
-    status: string;
+    status: ItemStatus;
     /** 作成日時（ISO 8601形式） */
     createdAt: string;
     /** 追加のCSSクラス */
