@@ -17,6 +17,7 @@
 import { useState, useRef, useCallback } from "react";
 import Image from "next/image";
 import { Upload, X, Plus, GripVertical } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -38,9 +39,7 @@ import {
     horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-
-/** 最大アップロード可能枚数 */
-const MAX_IMAGES = 10;
+import { MAX_IMAGES } from "@/lib/constants";
 
 /** 画像プレビューデータ */
 export interface ImagePreview {
@@ -184,15 +183,21 @@ export function MultiImageUploader({
     const processFiles = useCallback(
         (files: FileList | File[]) => {
             const fileArray = Array.from(files);
+            const imageFiles = fileArray.filter((file) => file.type.startsWith("image/"));
             const remainingSlots = MAX_IMAGES - images.length;
 
+            // 枚数超過の通知
+            if (imageFiles.length > remainingSlots) {
+                const skippedCount = imageFiles.length - remainingSlots;
+                toast.info(`最大${MAX_IMAGES}枚までです（${skippedCount}枚は選択されませんでした）`);
+            }
+
             if (remainingSlots <= 0) {
+                toast.warning(`これ以上追加できません（最大${MAX_IMAGES}枚）`);
                 return;
             }
 
-            const filesToProcess = fileArray
-                .filter((file) => file.type.startsWith("image/"))
-                .slice(0, remainingSlots);
+            const filesToProcess = imageFiles.slice(0, remainingSlots);
 
             const newImages: ImagePreview[] = [];
 
