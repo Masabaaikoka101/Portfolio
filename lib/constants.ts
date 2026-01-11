@@ -11,8 +11,8 @@
  * - テスト時にモック値を注入しやすい
  *
  * Note:
- * - types/index.ts の ItemStatus と同期する必要あり
- * - 変更時は両方を確認すること
+ * - STATUS_OPTIONS は lib/schemas/item.ts で ItemStatusSchema の元として使用
+ * - Zodスキーマから型が自動推論されるため、手動同期は不要
  *
  * Learning:
  * - as const アサーション: https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#literal-types
