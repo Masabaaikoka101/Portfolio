@@ -24,7 +24,7 @@
 
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -45,7 +45,6 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { useFileSelect } from "@/contexts/file-select-context";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 /**
@@ -55,13 +54,6 @@ export function SiteHeader() {
     const pathname = usePathname();
     const router = useRouter();
 
-    /** ファイル選択コンテキスト */
-    const { selectFile } = useFileSelect();
-
-    /** 隠しファイル入力への参照 */
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    /** 使い方モーダルの開閉状態 */
     const [isHelpOpen, setIsHelpOpen] = useState(false);
 
     /** 認証済みユーザー */
@@ -115,44 +107,18 @@ export function SiteHeader() {
     };
 
     /**
-     * 新規作成ボタンクリック → ファイル選択ダイアログを開く
+     * 新規作成ボタンクリック → トップページへ遷移（リセットフラグ付き）
      */
     const handleNewClick = () => {
-        fileInputRef.current?.click();
-    };
-
-    /**
-     * ファイル選択後 → ホームページへ遷移してファイルを渡す
-     */
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file && file.type.startsWith("image/")) {
-            selectFile(file);
-            // ホームページ以外にいる場合はホームへ遷移
-            if (pathname !== "/") {
-                router.push("/");
-            }
-        }
-        // 同じファイルを再選択できるようにリセット
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
+        // トップページへ遷移し、フォームをリセットするためのクエリパラメータを付与
+        router.push("/?reset=true");
     };
 
     return (
         <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-            {/* 隠しファイル入力 */}
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept="image/*"
-                className="hidden"
-            />
-
             <div className="container flex h-16 items-center justify-between px-4">
                 {/* 左側: ロゴ + アプリ名 */}
-                <Link href="/" className="flex items-center gap-1.5 group">
+                <Link href="/history" className="flex items-center gap-1.5 group">
                     <Image
                         src="/logo.svg"
                         alt="AXEL"

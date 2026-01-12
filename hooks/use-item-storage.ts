@@ -70,12 +70,13 @@ export function useItemStorage() {
      * @param onSuccess - 成功時のオプショナルコールバック
      */
     const saveItem = useCallback(async (
-        processedImage: string,
+        processedImages: (string | null)[],
         formState: ItemFormState,
         onSuccess?: () => void
     ) => {
-        // バリデーション
-        if (!processedImage || !formState.title) {
+        // バリデーション：有効な画像が少なくとも1つあること
+        const validImages = processedImages.filter((img): img is string => !!img);
+        if (validImages.length === 0 || !formState.title) {
             toast.error("必要な情報が不足しています");
             return;
         }
@@ -91,32 +92,37 @@ export function useItemStorage() {
                 return;
             }
 
-            // 2. 画像をBlobに変換
-            // Why fetch + blob()を使うのか:
-            // - Base64 Data URLからBlobへの変換で最も簡潔な方法
-            // - atob + Uint8Arrayを使う方法より可読性が高い
-            let imageToUpload: Blob;
-            if (processedImage.startsWith("data:") || processedImage.startsWith("blob:")) {
-                const response = await fetch(processedImage);
-                imageToUpload = await response.blob();
-            } else {
-                throw new Error("Invalid image format for upload");
-            }
+            // 2. 画像を並列アップロード
+            const uploadPromises = validImages.map(async (imageStr) => {
+                let imageToUpload: Blob;
+                if (imageStr.startsWith("data:") || imageStr.startsWith("blob:")) {
+                    const response = await fetch(imageStr);
+                    imageToUpload = await response.blob();
+                } else {
+                    throw new Error("Invalid image format for upload");
+                }
+                return ItemService.uploadImage(imageToUpload, user.id);
+            });
 
-            // 3. Supabase Storageにアップロード
-            const publicUrl = await ItemService.uploadImage(imageToUpload, user.id);
+            const uploadedUrls = await Promise.all(uploadPromises);
 
-            // 4. Supabase Databaseに保存
-            await ItemService.saveItem(user.id, publicUrl, formState);
+            // 3. Supabase Databaseに保存
+            // 1枚目をメイン画像、残りをother_imagesとする
+            const mainImageUrl = uploadedUrls[0];
+            const otherImages = uploadedUrls.slice(1);
 
-            // 5. 成功処理
+            const finalFormState: ItemFormState = {
+                ...formState,
+                other_images: otherImages
+            };
+
+            await ItemService.saveItem(user.id, mainImageUrl, finalFormState);
+
+            // 4. 成功処理
             toast.success("保存しました！");
             onSuccess?.();
 
-            // 6. 履歴ページへ遷移
-            // Why router.refresh()を呼ぶのか:
-            // - Server Componentのデータを再フェッチ
-            // - キャッシュされた履歴ページを更新
+            // 5. 履歴ページへ遷移
             router.push("/history");
             router.refresh();
 

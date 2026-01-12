@@ -80,13 +80,13 @@ export function ComparisonSlider({
                 onTouchStart={() => setShowBefore(true)}
                 onTouchEnd={() => setShowBefore(false)}
                 className={cn(
-                    "absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-sm font-medium transition-all",
-                    "bg-white/90 text-gray-700 shadow-lg backdrop-blur-sm",
+                    "absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full text-xs font-medium transition-all shadow-md backdrop-blur-sm",
+                    "bg-white/80 text-gray-600",
                     "hover:bg-white active:bg-gray-100",
                     "border border-gray-200"
                 )}
             >
-                {showBefore ? "Before表示中..." : "長押しでBeforeを表示"}
+                長押しでBefore
             </button>
         </div>
     );

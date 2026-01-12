@@ -116,7 +116,7 @@ function AuthCallbackContent() {
 
             toast.success("パスワードを更新しました");
             window.location.href = "/";
-        } catch (error: any) {
+        } catch (error) {
             console.error("Password update error:", error);
             toast.error("パスワードの更新に失敗しました");
         } finally {

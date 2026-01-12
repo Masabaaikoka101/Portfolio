@@ -23,6 +23,7 @@
 
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import type { ItemStatus } from "@/types";
 
 /**
  * Props型
@@ -35,7 +36,7 @@ interface ItemCardProps {
     /** 価格（円） */
     price: number;
     /** 商品の状態 */
-    status: string;
+    status: ItemStatus;
     /** 作成日時（ISO 8601形式） */
     createdAt: string;
     /** 追加のCSSクラス */
@@ -86,15 +87,18 @@ export function ItemCard({
                 className
             )}
             onClick={onClick}
-            draggable={!isEditMode}
+            draggable={false}
         >
-            {/* 画像エリア + 価格オーバーレイ */}
-            <div className="relative aspect-square bg-gray-100">
+            {/* 画像エリア + 価格オーバーレイ - ドラッグ可能 */}
+            <div
+                className="relative aspect-square bg-gray-100"
+                draggable={!isEditMode}
+            >
                 <Image
                     src={imageUrl}
                     alt={title}
                     fill
-                    className={`object-cover ${isEditMode ? "pointer-events-none select-none" : ""}`}
+                    className={`object-cover ${isEditMode ? "select-none pointer-events-none" : ""}`}
                     /**
                      * Why sizesを指定するのか:
                      * - レスポンシブ画像の最適化
@@ -109,10 +113,22 @@ export function ItemCard({
                 </div>
             </div>
 
-            {/* コンテンツエリア */}
-            <div className="p-3">
+            {/* コンテンツエリア - ドラッグ不可、テキスト選択可能 */}
+            <div className="p-3" draggable={false}>
                 {/* タイトル（2行で切り詰め） */}
-                <h3 className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight mb-2">
+                <h3
+                    className={cn(
+                        "text-sm font-medium text-gray-900 line-clamp-2 leading-tight mb-2",
+                        !isEditMode && "select-text cursor-text"
+                    )}
+                    onClick={(e) => {
+                        // 通常モードではテキスト選択を許可するためイベント伝播を停止
+                        if (!isEditMode) {
+                            e.stopPropagation();
+                        }
+                    }}
+                    draggable={false}
+                >
                     {title}
                 </h3>
                 {/* メタ情報 */}
