@@ -100,18 +100,41 @@ export const ItemService = {
         formState: ItemFormState,
         tags: string[] = []
     ): Promise<void> {
-        const { error: dbError } = await supabase.from("items").insert({
+        // まずはother_imagesを含めて保存を試みる
+        const fullData = {
             user_id: userId,
             image_url: imageUrl,
+            other_images: formState.other_images ?? [],
             title: formState.title,
             description: formState.description,
             price: formState.price,
             status: formState.status,
             category: DEFAULTS.category,
             tags: tags,
-        });
+        };
+
+        const { error: dbError } = await supabase.from("items").insert(fullData);
 
         if (dbError) {
+            // other_imagesカラムが存在しない場合はフォールバック
+            if (dbError.message.includes("other_images")) {
+                console.warn("other_images column not found. Saving without it...");
+                const fallbackData = {
+                    user_id: userId,
+                    image_url: imageUrl,
+                    title: formState.title,
+                    description: formState.description,
+                    price: formState.price,
+                    status: formState.status,
+                    category: DEFAULTS.category,
+                    tags: tags,
+                };
+                const { error: fallbackError } = await supabase.from("items").insert(fallbackData);
+                if (fallbackError) {
+                    throw new Error(`Database save failed: ${fallbackError.message}`);
+                }
+                return;
+            }
             throw new Error(`Database save failed: ${dbError.message}`);
         }
     },

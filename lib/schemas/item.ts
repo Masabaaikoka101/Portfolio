@@ -40,12 +40,14 @@ export const ItemSchema = z.object({
     id: z.string().uuid(),
     user_id: z.string().uuid().optional(),
     image_url: z.string().url(),
+    other_images: z.array(z.string()).optional(),
     title: z.string().min(1).max(TITLE_MAX_LENGTH),
     description: z.string().min(1),
     price: z.number().int().min(PRICE_LIMITS.min).max(PRICE_LIMITS.max),
     status: ItemStatusSchema,
     category: z.string().optional(),
     tags: z.array(z.string()).optional(),
+    sort_order: z.number().int().optional(), // 並び順（0が先頭）
     created_at: z.string(),
     updated_at: z.string().optional(),
 });
@@ -65,6 +67,7 @@ export const ItemFormSchema = z.object({
     description: z.string().min(1, "説明文を入力してください"),
     price: z.number().int().min(PRICE_LIMITS.min).max(PRICE_LIMITS.max),
     status: z.union([ItemStatusSchema, z.literal("")]),
+    other_images: z.array(z.string()).optional(), // 追加（処理済み画像のURL用）
 });
 
 // ============================================================================
