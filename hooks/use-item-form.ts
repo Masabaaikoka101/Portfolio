@@ -28,6 +28,11 @@
 "use client";
 
 import { useState, useCallback } from "react";
+
+/**
+ * ウィザードステップの定義
+ */
+export type WizardStep = "upload" | "reorder" | "condition" | "background" | "preview";
 import { AnalyzeResponse, ItemFormState, ItemStatus } from "@/types";
 import { useImageUpload } from "./use-image-upload";
 import { useAiAnalysis } from "./use-ai-analysis";
@@ -73,23 +78,19 @@ export function useItemForm(options?: UseItemFormOptions) {
     // 1. 画像状態（useImageUpload から取得）
     // =========================================================================
     const {
-        originalImage,
-        processedImage,
-        setProcessedImage,
-        selectedFile,
-        handleImageSelect: onImageSelect,
+        originalImages,
+        processedImages,
+        setProcessedImages,
+        selectedFiles,
+        handleFilesSelect: onFilesSelect,
         resetImage,
+        moveImage,
+        reorderImages,
     } = useImageUpload();
 
     // =========================================================================
     // 2. フォーム入力状態
     // =========================================================================
-    /**
-     * Why useStateを個別に使うのか:
-     * - React Hook Formを使わない理由: 学習目的でシンプルな実装を採用
-     * - フィールドが少ないため、個別管理で十分
-     * - 将来的に複雑化したらReact Hook Formへの移行を検討
-     */
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [price, setPrice] = useState(0);
@@ -97,30 +98,80 @@ export function useItemForm(options?: UseItemFormOptions) {
     /** 背景タイプ（デフォルト: 白スタジオ） */
     const [backgroundType, setBackgroundType] = useState("white");
 
-    /** 商品状態選択ステップの表示フラグ */
-    const [showStatusStep, setShowStatusStep] = useState(false);
+    /** 現在のウィザードステップ */
+    const [currentStep, setCurrentStep] = useState<WizardStep>("upload");
+
+    /** 現在プレビュー中の画像インデックス */
+    const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
 
     /**
-     * 画像選択ハンドラー（状態選択ステップを表示）
-     *
-     * Why ラッパー関数を作るのか:
-     * - 画像選択 → 状態選択ステップ表示の連携
-     * - useImageUploadのhandleImageSelectを拡張
+     * 画像選択ハンドラー（並び替えステップへ遷移）
      */
-    const handleImageSelect = useCallback((file: File) => {
-        onImageSelect(file);
-        setShowStatusStep(true);
-    }, [onImageSelect]);
+    const handleFilesSelect = useCallback((files: File[]) => {
+        onFilesSelect(files);
+        setCurrentStep("reorder");
+        setCurrentPreviewIndex(0); // リセット
+    }, [onFilesSelect]);
+
+    /**
+     * 画像編集（並び替え）ステップに戻る
+     */
+    const editImage = useCallback(() => {
+        setCurrentStep("reorder");
+    }, []);
+
+    /**
+     * 次のステップへ進む
+     */
+    const goToNextStep = useCallback(() => {
+        setCurrentStep((prev) => {
+            switch (prev) {
+                case "upload":
+                    return "reorder";
+                case "reorder":
+                    return "condition";
+                case "condition":
+                    return "background";
+                case "background":
+                    return "preview";
+                default:
+                    return prev;
+            }
+        });
+    }, []);
+
+    /**
+     * 前のステップへ戻る
+     */
+    const goToPrevStep = useCallback(() => {
+        setCurrentStep((prev) => {
+            switch (prev) {
+                case "reorder":
+                    return "upload";
+                case "condition":
+                    return "reorder";
+                case "background":
+                    return "condition";
+                case "preview":
+                    return "background";
+                default:
+                    return prev;
+            }
+        });
+    }, []);
+
+    /**
+     * 指定のステップへ移動
+     */
+    const goToStep = useCallback((step: WizardStep) => {
+        setCurrentStep(step);
+    }, []);
 
     // =========================================================================
     // 3. AI分析（useAiAnalysis から取得）
     // =========================================================================
     /**
-     * AI分析成功時のコールバック
-     *
-     * What this does:
-     * - AI生成結果をフォーム状態に反映
-     * - タイトル、説明文、価格を自動入力
+     * AI分析成功時のコールバック（テキスト）
      */
     const onAnalysisSuccess = useCallback((result: AnalyzeResponse) => {
         setTitle(result.title || "");
@@ -129,40 +180,34 @@ export function useItemForm(options?: UseItemFormOptions) {
     }, []);
 
     /**
-     * 画像編集成功時のコールバック
+     * 個別の画像処理完了時のコールバック
+     * 
+     * Why ここで更新するのか:
+     * - 各画像の処理が終わるたびにUIを更新するため
+     * - 失敗時(imageUrlがnull)はオリジナル画像にフォールバック
      */
-    const onImageEditSuccess = useCallback((imageUrl: string) => {
-        setProcessedImage(imageUrl);
-    }, [setProcessedImage]);
-
-    /**
-     * 画像編集スキップ時のコールバック
-     *
-     * Why URL.createObjectURLを使うのか:
-     * - Fileオブジェクトから表示用URLを生成
-     * - Base64変換より軽量
-     * - コンポーネントのアンマウント時にrevokeObjectURLが必要（要改善点）
-     */
-    const onImageEditSkip = useCallback(() => {
-        if (selectedFile) {
-            setProcessedImage(URL.createObjectURL(selectedFile));
-        }
-    }, [selectedFile, setProcessedImage]);
+    const onImageProcessed = useCallback((index: number, imageUrl: string | null) => {
+        setProcessedImages((prev) => {
+            const next = [...prev];
+            // 成功ならそのURL、失敗ならオリジナル画像、それもなければnull
+            next[index] = imageUrl ?? originalImages[index] ?? null;
+            return next;
+        });
+    }, [setProcessedImages, originalImages]);
 
     const { isAnalyzing, isEditingImage, startAnalysis: performAnalysis } = useAiAnalysis({
-        selectedFile,
+        selectedFiles,
         status,
         backgroundType,
         onAnalysisSuccess,
-        onImageEditSuccess,
-        onImageEditSkip,
+        onImageProcessed,
     });
 
     /**
-     * 分析開始（状態選択ステップを非表示にしてから実行）
+     * 分析開始（プレビューステップへ遷移してから実行）
      */
     const startAnalysis = useCallback(async () => {
-        setShowStatusStep(false);
+        setCurrentStep("preview");
         await performAnalysis();
     }, [performAnalysis]);
 
@@ -173,14 +218,9 @@ export function useItemForm(options?: UseItemFormOptions) {
 
     /**
      * 商品を保存
-     *
-     * What this does:
-     * - フォーム状態をItemFormState型にまとめる
-     * - useItemStorageのsaveItemを呼び出し
      */
     const save = useCallback(async () => {
-        if (!processedImage) return;
-
+        // processedImagesの中身が有効かはsaveItem内でチェック
         const formState: ItemFormState = {
             title,
             description,
@@ -188,28 +228,21 @@ export function useItemForm(options?: UseItemFormOptions) {
             status,
         };
 
-        await performSave(processedImage, formState, options?.onSuccess);
-    }, [processedImage, title, description, price, status, performSave, options?.onSuccess]);
+        await performSave(processedImages, formState, options?.onSuccess);
+    }, [processedImages, title, description, price, status, performSave, options?.onSuccess]);
 
     // =========================================================================
     // 5. リセット処理
     // =========================================================================
-    /**
-     * 全状態をリセット
-     *
-     * What this does:
-     * - 画像状態をクリア
-     * - フォーム入力をクリア
-     * - 表示ステップをリセット
-     */
     const reset = useCallback(() => {
         resetImage();
-        setShowStatusStep(false);
+        setCurrentStep("upload");
         setStatus("");
         setBackgroundType("white");
         setTitle("");
         setDescription("");
         setPrice(0);
+        setCurrentPreviewIndex(0);
     }, [resetImage]);
 
     // =========================================================================
@@ -217,15 +250,22 @@ export function useItemForm(options?: UseItemFormOptions) {
     // =========================================================================
     return {
         // 画像
-        originalImage,
-        processedImage,
-        selectedFile,
+        originalImages,
+        processedImages,
+        selectedFiles,
+        currentPreviewIndex,
+        setCurrentPreviewIndex,
 
         // ローディング状態
         isAnalyzing,
         isEditingImage,
         isSaving,
-        showStatusStep,
+
+        // ウィザードステップ
+        currentStep,
+        goToNextStep,
+        goToPrevStep,
+        goToStep,
 
         // フォームフィールド
         title,
@@ -240,9 +280,12 @@ export function useItemForm(options?: UseItemFormOptions) {
         setBackgroundType,
 
         // アクション
-        handleImageSelect,
+        handleFilesSelect,
         startAnalysis,
         save,
         reset,
+        editImage,
+        moveImage,
+        reorderImages,
     };
 }

@@ -34,64 +34,47 @@ import { cn } from "@/lib/utils";
  * Props型
  */
 interface ImageUploaderProps {
-    /** 画像選択時のコールバック */
-    onImageSelect: (file: File) => void;
+    /** 画像選択時のコールバック（複数） */
+    onFilesSelect: (files: File[]) => void;
     /** 追加のCSSクラス */
     className?: string;
 }
 
 /**
  * 画像アップローダーコンポーネント
- *
- * Why ローカルにpreview状態を持つのか:
- * - 画像選択直後にプレビューを表示するため
- * - 親コンポーネントの状態更新を待つとチラつく可能性
- * - onImageSelectと独立して高速にUI更新
- *
- * @param props - コンポーネントのprops
  */
-export function ImageUploader({ onImageSelect, className }: ImageUploaderProps) {
-    /** プレビュー画像（Base64 Data URL） */
-    const [preview, setPreview] = useState<string | null>(null);
-
-    /** ドラッグ中フラグ（スタイル変更用） */
+export function ImageUploader({ onFilesSelect, className }: ImageUploaderProps) {
+    /** プレビュー画像リスト */
+    const [previews, setPreviews] = useState<string[]>([]);
+    /** ドラッグ中フラグ */
     const [isDragging, setIsDragging] = useState(false);
 
-    /**
-     * 隠しファイル入力への参照
-     *
-     * Why refを使うのか:
-     * - クリック時にプログラム的にファイル選択ダイアログを開く
-     * - DOMに直接アクセスする必要があるため
-     */
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     /**
-     * ファイル処理（共通処理）
-     *
-     * What this does:
-     * 1. 画像ファイルかチェック
-     * 2. FileReaderでBase64に変換してプレビュー設定
-     * 3. 親コンポーネントに通知
+     * ファイル処理
      */
-    const handleFile = (file: File) => {
-        if (!file.type.startsWith("image/")) return;
+    const handleFiles = (files: File[]) => {
+        const validFiles = files.filter(f => f.type.startsWith("image/")).slice(0, 3);
+        if (validFiles.length === 0) return;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            setPreview(e.target?.result as string);
-        };
-        reader.readAsDataURL(file);
-        onImageSelect(file);
+        // プレビュー生成（UI用）
+        const newPreviews: string[] = [];
+        const promises = validFiles.map(file => new Promise<void>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                newPreviews.push(e.target?.result as string);
+                resolve();
+            };
+            reader.readAsDataURL(file);
+        }));
+
+        Promise.all(promises).then(() => {
+            setPreviews(newPreviews);
+            onFilesSelect(validFiles);
+        });
     };
 
-    // =========================================================================
-    // ドラッグ＆ドロップイベントハンドラー
-    // =========================================================================
-    /**
-     * Why preventDefault()が必要か:
-     * - ブラウザのデフォルト動作（新しいタブで画像を開く等）を防止
-     */
     const onDragOver = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(true);
@@ -105,53 +88,41 @@ export function ImageUploader({ onImageSelect, className }: ImageUploaderProps) 
     const onDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(false);
-        if (e.dataTransfer.files?.[0]) {
-            handleFile(e.dataTransfer.files[0]);
+        if (e.dataTransfer.files?.length > 0) {
+            handleFiles(Array.from(e.dataTransfer.files));
         }
     };
 
-    // =========================================================================
-    // クリック関連ハンドラー
-    // =========================================================================
     const onClickUpload = () => {
         fileInputRef.current?.click();
     };
 
     const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files?.[0]) {
-            handleFile(e.target.files[0]);
+        if (e.target.files?.length) {
+            handleFiles(Array.from(e.target.files));
         }
     };
 
-    /**
-     * 画像クリア
-     *
-     * Why stopPropagation()が必要か:
-     * - 親要素のonClickイベント（ファイル選択ダイアログを開く）が発火するのを防止
-     */
-    const clearImage = (e: React.MouseEvent) => {
+    const clearImages = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setPreview(null);
+        setPreviews([]);
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
         }
     };
 
-    // =========================================================================
-    // レンダリング
-    // =========================================================================
     return (
         <Card
             className={cn(
                 "relative w-full overflow-hidden transition-all duration-300 ease-in-out border-dashed",
                 isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400 hover:bg-gray-50",
-                preview ? "border-solid border-gray-200" : "border-2",
+                previews.length > 0 ? "border-solid border-gray-200" : "border-2",
                 className
             )}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
-            onClick={!preview ? onClickUpload : undefined}
+            onClick={previews.length === 0 ? onClickUpload : undefined}
         >
             {/* 隠しファイル入力 */}
             <input
@@ -160,23 +131,34 @@ export function ImageUploader({ onImageSelect, className }: ImageUploaderProps) 
                 onChange={onFileChange}
                 accept="image/*"
                 className="hidden"
+                multiple
             />
 
-            {preview ? (
+            {previews.length > 0 ? (
                 // プレビュー表示状態
-                <div className="relative aspect-square w-full md:aspect-[4/3]">
-                    <Image
-                        src={preview}
-                        alt="Uploaded image"
-                        fill
-                        className="object-contain"
-                        unoptimized // Base64画像のため最適化をスキップ
-                    />
+                <div className="relative w-full h-full p-4">
+                    <div className="grid grid-cols-2 gap-2 w-full h-full">
+                        {previews.map((src, index) => (
+                            <div key={index} className={cn(
+                                "relative aspect-square w-full rounded-md overflow-hidden bg-gray-100",
+                                previews.length === 1 && "col-span-2 row-span-2 aspect-auto h-64 md:h-80",
+                                previews.length === 3 && index === 0 && "col-span-2"
+                            )}>
+                                <Image
+                                    src={src}
+                                    alt={`Uploaded image ${index + 1}`}
+                                    fill
+                                    className="object-contain"
+                                    unoptimized
+                                />
+                            </div>
+                        ))}
+                    </div>
                     <Button
                         variant="secondary"
                         size="icon"
-                        className="absolute right-2 top-2 h-8 w-8 rounded-full shadow-md hover:bg-red-100 hover:text-red-600"
-                        onClick={clearImage}
+                        className="absolute right-2 top-2 h-8 w-8 rounded-full shadow-md hover:bg-red-100 hover:text-red-600 z-10"
+                        onClick={clearImages}
                     >
                         <X className="h-4 w-4" />
                     </Button>
@@ -194,7 +176,7 @@ export function ImageUploader({ onImageSelect, className }: ImageUploaderProps) 
                         ここにドラッグ＆ドロップ、またはクリックして選択
                     </p>
                     <p className="mt-2 text-xs text-gray-400">
-                        PNG, JPG, WEBP (最大 10MB)
+                        最大3枚まで (PNG, JPG, WEBP)
                     </p>
                 </div>
             )}

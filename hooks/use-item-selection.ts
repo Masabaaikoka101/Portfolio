@@ -26,10 +26,14 @@ interface UseItemSelectionOptions<T extends { id: string }> {
 interface UseItemSelectionReturn {
     /** 選択中のID Set */
     selectedIds: Set<string>;
-    /** 最後にクリックしたインデックス（範囲選択用） */
+    /** 最後にクリックしたインデックス */
     lastClickedIndex: number | null;
-    /** アイテムクリック時のハンドラー */
+    /** アイテムクリック時のハンドラー（Hook内蔵） */
     handleItemClick: (index: number, e: React.MouseEvent) => void;
+    /** 単一選択のトグル */
+    toggleSelection: (itemId: string) => void;
+    /** 範囲選択 */
+    selectRange: (index: number) => void;
     /** 全選択/全解除トグル */
     toggleSelectAll: () => void;
     /** 選択をクリア */
@@ -40,9 +44,6 @@ interface UseItemSelectionReturn {
     isAllSelected: boolean;
 }
 
-/**
- * 商品選択フック
- */
 export function useItemSelection<T extends { id: string }>({
     items,
     isEditMode,
@@ -51,12 +52,43 @@ export function useItemSelection<T extends { id: string }>({
     const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
 
     /**
-     * アイテムクリックハンドラー
-     *
-     * 選択モード:
-     * - Shift+クリック: 範囲選択
-     * - Ctrl+クリック: 追加/削除選択
-     * - 通常クリック: トグル
+     * 単一選択のトグル
+     */
+    const toggleSelection = useCallback((itemId: string) => {
+        setSelectedIds(prev => {
+            const newSelected = new Set(prev);
+            if (newSelected.has(itemId)) {
+                newSelected.delete(itemId);
+            } else {
+                newSelected.add(itemId);
+            }
+            return newSelected;
+        });
+    }, []);
+
+    /**
+     * 範囲選択
+     */
+    const selectRange = useCallback((currentIndex: number) => {
+        if (lastClickedIndex === null) return;
+
+        const start = Math.min(lastClickedIndex, currentIndex);
+        const end = Math.max(lastClickedIndex, currentIndex);
+
+        const idsToAdd = new Set<string>();
+        for (let i = start; i <= end; i++) {
+            idsToAdd.add(items[i].id);
+        }
+
+        setSelectedIds(prev => {
+            const newSelected = new Set(prev);
+            idsToAdd.forEach(id => newSelected.add(id));
+            return newSelected;
+        });
+    }, [items, lastClickedIndex]);
+
+    /**
+     * アイテムクリックハンドラー（互換性、Hook内部ロジック用）
      */
     const handleItemClick = useCallback(
         (index: number, e: React.MouseEvent) => {
@@ -66,41 +98,23 @@ export function useItemSelection<T extends { id: string }>({
 
             if (e.shiftKey && lastClickedIndex !== null) {
                 // Shift+クリック: 範囲選択
-                const start = Math.min(lastClickedIndex, index);
-                const end = Math.max(lastClickedIndex, index);
-                const newSelected = new Set(selectedIds);
-                for (let i = start; i <= end; i++) {
-                    newSelected.add(items[i].id);
-                }
-                setSelectedIds(newSelected);
+                selectRange(index);
             } else if (e.ctrlKey || e.metaKey) {
-                // Ctrl+クリック: 追加/削除選択
-                const newSelected = new Set(selectedIds);
-                if (newSelected.has(itemId)) {
-                    newSelected.delete(itemId);
-                } else {
-                    newSelected.add(itemId);
-                }
-                setSelectedIds(newSelected);
+                // Ctrlキー: 単体トグルと同じだが、lastClickedIndexを更新して選択状態を維持/反転
+                // 今回の要件では toggleSelection を呼ぶ
+                toggleSelection(itemId);
                 setLastClickedIndex(index);
             } else {
                 // 通常クリック: トグル
-                const newSelected = new Set(selectedIds);
-                if (newSelected.has(itemId)) {
-                    newSelected.delete(itemId);
-                } else {
-                    newSelected.add(itemId);
-                }
-                setSelectedIds(newSelected);
+                toggleSelection(itemId);
                 setLastClickedIndex(index);
             }
         },
-        [isEditMode, items, selectedIds, lastClickedIndex]
+        [isEditMode, items, lastClickedIndex, selectRange, toggleSelection]
     );
 
-    /**
-     * 全選択/全解除トグル
-     */
+    // ... (rest is same)
+
     const toggleSelectAll = useCallback(() => {
         if (selectedIds.size === items.length) {
             setSelectedIds(new Set());
@@ -109,43 +123,30 @@ export function useItemSelection<T extends { id: string }>({
         }
     }, [items, selectedIds.size]);
 
-    /**
-     * 選択をクリア
-     */
     const clearSelection = useCallback(() => {
         setSelectedIds(new Set());
         setLastClickedIndex(null);
     }, []);
 
-    /**
-     * キーボードショートカット
-     * - Ctrl+A: 全選択
-     * - Escape: 選択解除
-     */
+    // Effect for Keyboard shortcuts... (omitted in this replace, assume existing)
+    // Need to handle useEffect separately or include it? 
+    // replacing from line 26 to ... end allows rewriting the logic.
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // 入力フィールドにフォーカス中は無視
-            if (
-                e.target instanceof HTMLInputElement ||
-                e.target instanceof HTMLTextAreaElement
-            ) {
-                return;
-            }
-
-            // Ctrl+A: 全選択（編集モード時）
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+            // Ctrl+A
             if ((e.ctrlKey || e.metaKey) && e.key === "a") {
                 if (isEditMode && items.length > 0) {
                     e.preventDefault();
                     setSelectedIds(new Set(items.map((item) => item.id)));
                 }
             }
-
-            // Escape: 選択解除
+            // Escape
             if (e.key === "Escape" && selectedIds.size > 0) {
                 setSelectedIds(new Set());
             }
         };
-
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [isEditMode, items, selectedIds.size]);
@@ -154,6 +155,8 @@ export function useItemSelection<T extends { id: string }>({
         selectedIds,
         lastClickedIndex,
         handleItemClick,
+        toggleSelection,
+        selectRange,
         toggleSelectAll,
         clearSelection,
         selectedCount: selectedIds.size,

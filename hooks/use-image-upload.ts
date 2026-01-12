@@ -1,122 +1,136 @@
-/**
- * 画像アップロードフック
- *
- * このフックの役割:
- * - 画像ファイルの選択とプレビュー表示を管理
- * - オリジナル画像と処理済み画像の状態を分離管理
- *
- * Why カスタムフックに分離するのか:
- * - 関心の分離: 画像処理ロジックをUIから分離
- * - 再利用性: 複数のコンポーネントで同じロジックを共有可能
- * - テスタビリティ: フック単体でテスト可能
- *
- * 状態の説明:
- * - originalImage: ユーザーが選択した元画像（Base64 Data URL）
- * - processedImage: AI編集後の画像、または編集スキップ時はオリジナル
- * - selectedFile: File オブジェクト（APIへのアップロードに使用）
- *
- * Learning:
- * - React Custom Hooks: https://react.dev/learn/reusing-logic-with-custom-hooks
- * - FileReader API: https://developer.mozilla.org/ja/docs/Web/API/FileReader
- */
-
 import { useState, useCallback } from "react";
 
 /**
  * 画像アップロード管理フック
  *
- * Why useStateを複数使うのか:
- * - 各状態が独立しており、一緒に更新されるとは限らない
- * - originalImageは選択時に設定、processedImageはAI処理後に設定
- * - useReducerを使う選択肢もあるが、状態が単純なためuseStateで十分
+ * Why 配列で管理するのか:
+ * - 複数画像（最大3枚）のアップロードに対応するため
+ * - originalImages[i] と processedImages[i] をインデックスで対応付け
  *
  * @returns 画像状態と操作関数
- *
- * @example
- * ```tsx
- * const { originalImage, handleImageSelect } = useImageUpload();
- *
- * return (
- *   <input
- *     type="file"
- *     onChange={(e) => e.target.files?.[0] && handleImageSelect(e.target.files[0])}
- *   />
- * );
- * ```
  */
 export function useImageUpload() {
     /**
-     * オリジナル画像（Base64 Data URL）
-     *
-     * Why Base64で保持するのか:
-     * - <img src={...}> で直接表示可能
-     * - File オブジェクトは表示に変換が必要
+     * オリジナル画像リスト（Base64 Data URL）
      */
-    const [originalImage, setOriginalImage] = useState<string | null>(null);
+    const [originalImages, setOriginalImages] = useState<string[]>([]);
 
     /**
-     * 処理済み画像
+     * 処理済み画像リスト
      *
-     * Why 別の状態として管理するのか:
-     * - AI画像編集の結果を保持
-     * - 編集失敗時はオリジナルにフォールバック
-     * - Before/After比較表示に使用
+     * Note:
+     * - originalImagesと同じ長さの配列
+     * - まだ処理されていない、または処理失敗等の場合は null が入る可能性あり
+     * - UI側で originalImages[i] があるのに processedImages[i] が null なら「処理中」とみなす等の制御が可能
      */
-    const [processedImage, setProcessedImage] = useState<string | null>(null);
+    const [processedImages, setProcessedImages] = useState<(string | null)[]>([]);
 
     /**
-     * 選択されたファイル
-     *
-     * Why File オブジェクトも保持するのか:
-     * - API送信時にはFileオブジェクトが必要（FormDataに追加）
-     * - Base64からBlobに変換するより効率的
+     * 選択されたファイルリスト
      */
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
     /**
-     * 画像選択ハンドラー
+     * 画像選択ハンドラー（複数対応）
      *
-     * Why useCallbackを使うのか:
-     * - 関数の参照を安定させ、不要な再レンダリングを防止
-     * - 依存配列が空なので、コンポーネントのライフサイクル通して同一参照
-     *
-     * Why FileReaderを使うのか:
-     * - ファイルをBase64に変換してプレビュー表示
-     * - URL.createObjectURL()も選択肢だが、メモリリーク対策が必要
+     * What this does:
+     * - 選択されたファイルをBase64に変換
+     * - 最大3枚までに制限
+     * - 既存の状態をリセットして置き換え
+     * 
+     * Note: 
+     * - ブラウザ/OSによっては選択順と逆順でファイルが返される場合がある
+     * - そのため配列を反転して、最初に選択したファイルがメイン画像となるよう調整
      */
-    const handleImageSelect = useCallback((file: File) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            setOriginalImage(e.target?.result as string);
-        };
-        reader.readAsDataURL(file);
-        setSelectedFile(file);
-        // 新しい画像選択時は処理済み画像をリセット
-        setProcessedImage(null);
+    const handleFilesSelect = useCallback((files: File[]) => {
+        if (files.length === 0) return;
+
+        // 最大3枚まで、かつ反転して選択順序を維持
+        // Note: 一部ブラウザでは選択順と逆にファイルが返されるため反転
+        const targetFiles = files.slice(0, 3).reverse();
+
+        // ファイル読み込み（並列実行だが、Promise.allは順序を維持）
+        const promises = targetFiles.map((file, index) => {
+            return new Promise<{ index: number; image: string }>((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    resolve({ index, image: e.target?.result as string });
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+
+        Promise.all(promises).then((results) => {
+            // インデックス順にソートして画像を取り出す
+            const sortedResults = results.sort((a, b) => a.index - b.index);
+            const images = sortedResults.map((r) => r.image);
+
+            setOriginalImages(images);
+            setProcessedImages(new Array(images.length).fill(null));
+            setSelectedFiles(targetFiles);
+        });
     }, []);
 
     /**
      * 画像リセット
-     *
-     * Why 別関数として定義するのか:
-     * - 「やり直す」ボタンから呼び出す
-     * - 全ての状態を一括でクリア
      */
     const resetImage = useCallback(() => {
-        setOriginalImage(null);
-        setProcessedImage(null);
-        setSelectedFile(null);
+        setOriginalImages([]);
+        setProcessedImages([]);
+        setSelectedFiles([]);
+    }, []);
+
+    /**
+     * 画像の並び順を変更（スワップ）
+     * @param fromIndex 移動元のインデックス
+     * @param toIndex 移動先のインデックス
+     */
+    const moveImage = useCallback((fromIndex: number, toIndex: number) => {
+        if (fromIndex === toIndex) return;
+
+        setOriginalImages((prev) => {
+            const next = [...prev];
+            const [moved] = next.splice(fromIndex, 1);
+            next.splice(toIndex, 0, moved);
+            return next;
+        });
+
+        setProcessedImages((prev) => {
+            const next = [...prev];
+            const [moved] = next.splice(fromIndex, 1);
+            next.splice(toIndex, 0, moved);
+            return next;
+        });
+
+        setSelectedFiles((prev) => {
+            const next = [...prev];
+            const [moved] = next.splice(fromIndex, 1);
+            next.splice(toIndex, 0, moved);
+            return next;
+        });
+    }, []);
+
+    /**
+     * 画像の並び順を一括変更
+     * @param newIndices 新しい並び順のインデックス配列 (例: [2, 0, 1])
+     */
+    const reorderImages = useCallback((newIndices: number[]) => {
+        setOriginalImages((prev) => newIndices.map(i => prev[i]));
+        setProcessedImages((prev) => newIndices.map(i => prev[i]));
+        setSelectedFiles((prev) => newIndices.map(i => prev[i]));
     }, []);
 
     return {
         // 状態
-        originalImage,
-        processedImage,
-        setProcessedImage, // 外部から設定可能（AI編集結果を受け取るため）
-        selectedFile,
+        originalImages,
+        processedImages,
+        setProcessedImages, // 外部から更新用（AI処理完了時など）
+        selectedFiles,
 
         // アクション
-        handleImageSelect,
+        handleFilesSelect,
         resetImage,
+        moveImage,
+        reorderImages,
     };
 }

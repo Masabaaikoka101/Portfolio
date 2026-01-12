@@ -60,77 +60,73 @@ interface UseAiAnalysisProps {
  * @returns ローディング状態と分析開始関数
  */
 export function useAiAnalysis({
-    selectedFile,
+    selectedFiles,
     status,
     backgroundType,
     onAnalysisSuccess,
-    onImageEditSuccess,
-    onImageEditSkip,
-}: UseAiAnalysisProps) {
+    onImageProcessed,
+}: {
+    selectedFiles: File[];
+    status: string;
+    backgroundType: string;
+    onAnalysisSuccess: (result: AnalyzeResponse) => void;
+    onImageProcessed: (index: number, imageUrl: string | null) => void;
+}) {
     /** テキスト生成中フラグ */
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    /** 画像編集中フラグ */
+    /** 画像編集中フラグ（いずれかが処理中ならtrue） */
     const [isEditingImage, setIsEditingImage] = useState(false);
 
     /**
      * AI分析を開始
      *
-     * Why Promise.allSettledを使うのか:
-     * - Promise.all: 1つ失敗すると全体が失敗（今回は不適切）
-     * - Promise.allSettled: 各Promiseの成功/失敗を個別に取得
-     * - 画像編集が失敗してもテキスト生成の結果は使える
-     *
-     * 処理フロー:
-     * 1. ローディング状態をON
-     * 2. テキスト生成と画像編集を並列実行
-     * 3. 各結果を個別にハンドリング
-     * 4. コールバックで親に通知
-     * 5. ローディング状態をOFF
+     * Why 並列実行と個別コールバックを使うのか:
+     * - 各画像の処理完了タイミングで即座にUIへ反映させるため（UX向上）
+     * - すべての完了を待つと、ユーザーを待たせる時間が長くなる
      */
     const startAnalysis = useCallback(async () => {
-        if (!selectedFile) return;
+        if (!selectedFiles || selectedFiles.length === 0) return;
 
         setIsAnalyzing(true);
         setIsEditingImage(true);
 
-        try {
-            // 並列実行：テキスト生成 + 画像編集
-            const [analyzeResult, editResult] = await Promise.allSettled([
-                AiService.analyzeItem(selectedFile, status),
-                AiService.editImage(selectedFile, backgroundType),
-            ]);
-
-            // テキスト生成結果のハンドリング
-            if (analyzeResult.status === "fulfilled") {
-                onAnalysisSuccess(analyzeResult.value);
-            } else {
+        // 1. テキスト生成（メイン画像のみ使用）
+        const textAnalysisPromise = AiService.analyzeItem(selectedFiles[0], status)
+            .then((result) => {
+                onAnalysisSuccess(result);
+            })
+            .catch((error) => {
+                console.error("Analysis failed:", error);
                 toast.error("テキスト生成に失敗しました");
-                console.error("Analysis failed:", analyzeResult.reason);
-            }
+            })
+            .finally(() => {
+                setIsAnalyzing(false);
+            });
 
-            setIsAnalyzing(false);
-
-            // 画像編集結果のハンドリング
-            if (editResult.status === "fulfilled" && editResult.value.success && editResult.value.imageUrl) {
-                onImageEditSuccess(editResult.value.imageUrl);
-            } else {
-                // 編集失敗時はオリジナル画像にフォールバック
-                if (editResult.status === "rejected") {
-                    console.error("Image editing failed:", editResult.reason);
+        // 2. 画像編集（全画像並列実行）
+        const imageEditPromises = selectedFiles.map(async (file, index) => {
+            try {
+                const result = await AiService.editImage(file, backgroundType);
+                if (result.success && result.imageUrl) {
+                    onImageProcessed(index, result.imageUrl);
+                } else {
+                    // 失敗時はnullを返し、親側でオリジナル画像へのフォールバックを処理
+                    onImageProcessed(index, null);
+                    if (result.error) console.error(`Image ${index} edit failed:`, result.error);
                 }
-                onImageEditSkip();
-                toast.info("AI画像編集はスキップされました");
+            } catch (error) {
+                console.error(`Image ${index} edit exception:`, error);
+                onImageProcessed(index, null);
             }
+        });
 
-        } catch (error) {
-            // 予期せぬエラー（ネットワーク障害など）
-            console.error("Unexpected error during analysis:", error);
-            toast.error("分析中にエラーが発生しました");
-            setIsAnalyzing(false);
-        } finally {
-            setIsEditingImage(false);
-        }
-    }, [selectedFile, status, backgroundType, onAnalysisSuccess, onImageEditSuccess, onImageEditSkip]);
+        // 全ての処理完了を待って編集モード終了
+        // Note: 個別の更新はonImageProcessedで行われるため、ここで待つのは
+        // isEditingImageフラグをOFFにするためだけ
+        await Promise.all([textAnalysisPromise, ...imageEditPromises]);
+        setIsEditingImage(false);
+
+    }, [selectedFiles, status, backgroundType, onAnalysisSuccess, onImageProcessed]);
 
     return {
         /** テキスト生成中かどうか */

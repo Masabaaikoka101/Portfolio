@@ -3,7 +3,7 @@
  *
  * このページの役割:
  * - 商品出品フローのメインUI
- * - 画像アップロード → 状態選択 → AI分析 → プレビュー の流れを管理
+ * - ウィザード形式で画像選択 → 並び替え → 状態選択 → 背景選択 → プレビュー へ遷移
  *
  * Why クライアントコンポーネントなのか:
  * - useItemFormフック（useState, useEffect）を使用
@@ -30,14 +30,18 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import { useItemForm } from "@/hooks/use-item-form";
 import { useAuth } from "@/hooks/use-auth";
-import { useFileSelect } from "@/contexts/file-select-context";
 import { EmptyState } from "@/components/features/home/EmptyState";
-import { StatusSelectionStep } from "@/components/features/home/StatusSelectionStep";
-import { AnalysisLoading } from "@/components/features/home/AnalysisLoading";
 import { PreviewStep } from "@/components/features/home/PreviewStep";
+import {
+  ImageOrderingStep,
+  ConditionSelectionStep,
+  BackgroundSelectionStep,
+} from "@/components/features/home/WizardSteps";
 import { Loader2 } from "lucide-react";
 
 /**
@@ -55,9 +59,60 @@ function AuthLoading() {
 }
 
 /**
- * ホームページコンポーネント
+ * ステップインジケーターコンポーネント
  */
-export default function Home() {
+function StepIndicator({ currentStep }: { currentStep: string }) {
+  const steps = [
+    { id: "reorder", label: "画像" },
+    { id: "condition", label: "状態" },
+    { id: "background", label: "背景" },
+  ];
+
+  const currentIndex = steps.findIndex((s) => s.id === currentStep);
+
+  // uploadやpreviewの場合は表示しない
+  if (currentIndex === -1) return null;
+
+  return (
+    <div className="flex items-center justify-center gap-2 mb-6">
+      {steps.map((step, index) => (
+        <div key={step.id} className="flex items-center gap-2">
+          <div
+            className={`
+              w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all
+              ${index <= currentIndex
+                ? "bg-blue-600 text-white"
+                : "bg-gray-200 text-gray-500"
+              }
+            `}
+          >
+            {index + 1}
+          </div>
+          <span
+            className={`text-sm hidden sm:inline ${index === currentIndex ? "text-blue-600 font-medium" : "text-gray-400"
+              }`}
+          >
+            {step.label}
+          </span>
+          {index < steps.length - 1 && (
+            <div
+              className={`w-8 h-0.5 ${index < currentIndex ? "bg-blue-600" : "bg-gray-200"
+                }`}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * フォーム状態とUIを管理するメインコンポーネント（Suspenseでラップされる内部コンポーネント）
+ */
+function HomeContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   // =========================================================================
   // 認証チェック（ログイン必須）
   // =========================================================================
@@ -67,23 +122,17 @@ export default function Home() {
   });
 
   // =========================================================================
-  // ファイル選択コンテキスト（ヘッダーからのファイル選択を受け取る）
-  // =========================================================================
-  const { selectedFile, clearFile } = useFileSelect();
-
-  // =========================================================================
   // フォーム状態
   // =========================================================================
   const {
-    // 画像状態
-    originalImage,
-    processedImage,
-    // ローディング状態
+    originalImages,
+    processedImages,
+    currentPreviewIndex,
     isAnalyzing,
-    isEditingImage,
     isSaving,
-    showStatusStep,
-    // フォームフィールド
+    currentStep,
+    goToNextStep,
+    goToPrevStep,
     title,
     setTitle,
     description,
@@ -94,22 +143,25 @@ export default function Home() {
     setStatus,
     backgroundType,
     setBackgroundType,
-    // アクション
-    handleImageSelect,
+    setCurrentPreviewIndex,
+    handleFilesSelect,
     startAnalysis,
-    save,
+    save: saveItem,
     reset,
+    reorderImages,
   } = useItemForm();
 
   // =========================================================================
-  // ヘッダーからのファイル選択を処理
+  // リセットパラメータの監視
   // =========================================================================
   useEffect(() => {
-    if (selectedFile) {
-      handleImageSelect(selectedFile);
-      clearFile(); // 処理後にクリア
+    const shouldReset = searchParams.get("reset") === "true";
+    if (shouldReset) {
+      reset();
+      // パラメータを削除してURLをクリーンにする
+      router.replace("/", { scroll: false });
     }
-  }, [selectedFile, handleImageSelect, clearFile]);
+  }, [searchParams, reset, router]);
 
   // =========================================================================
   // 認証チェック中
@@ -126,51 +178,129 @@ export default function Home() {
   }
 
   // =========================================================================
-  // ローディング中はフルスクリーンローディングを表示
-  // =========================================================================
-  if (isAnalyzing || isEditingImage) {
-    return <AnalysisLoading />;
-  }
-
-  // =========================================================================
   // メインレンダリング
   // =========================================================================
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="container max-w-6xl mx-auto px-4 py-8">
-        {/* ステップ1: 画像アップロード（初期状態） */}
-        {!originalImage && <EmptyState onImageSelect={handleImageSelect} />}
+    <div className="container max-w-7xl mx-auto px-4 py-8">
+      {/* ステップインジケーター */}
+      <StepIndicator currentStep={currentStep} />
 
-        {/* ステップ2: 商品状態選択 */}
-        {originalImage && showStatusStep && (
-          <StatusSelectionStep
-            originalImage={originalImage}
-            status={status}
-            setStatus={setStatus}
-            backgroundType={backgroundType}
-            setBackgroundType={setBackgroundType}
-            onStartAnalysis={startAnalysis}
-            onReset={reset}
-          />
+      {/* アニメーション付きステップ切り替え */}
+      <AnimatePresence mode="wait">
+        {/* 1. アップロード画面 */}
+        {currentStep === "upload" && (
+          <motion.div
+            key="upload"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <EmptyState onFilesSelect={handleFilesSelect} />
+          </motion.div>
         )}
 
-        {/* ステップ3: プレビュー表示（AI分析完了後） */}
-        {processedImage && (
-          <PreviewStep
-            processedImage={processedImage}
-            originalImage={originalImage!}
-            title={title}
-            description={description}
-            price={price}
-            isSaving={isSaving}
-            setTitle={setTitle}
-            setDescription={setDescription}
-            setPrice={setPrice}
-            onSave={save}
-            onReset={reset}
-          />
+        {/* 2. 画像並び替え画面 */}
+        {currentStep === "reorder" && (
+          <motion.div
+            key="reorder"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <ImageOrderingStep
+              originalImages={originalImages}
+              reorderImages={reorderImages}
+              onNext={goToNextStep}
+              onBack={reset}
+            />
+          </motion.div>
         )}
-      </div>
+
+        {/* 3. 商品状態選択画面 */}
+        {currentStep === "condition" && (
+          <motion.div
+            key="condition"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <ConditionSelectionStep
+              status={status}
+              setStatus={setStatus}
+              onNext={goToNextStep}
+              onBack={goToPrevStep}
+            />
+          </motion.div>
+        )}
+
+        {/* 4. 背景選択画面 */}
+        {currentStep === "background" && (
+          <motion.div
+            key="background"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <BackgroundSelectionStep
+              backgroundType={backgroundType}
+              setBackgroundType={setBackgroundType}
+              onStartAnalysis={startAnalysis}
+              onBack={goToPrevStep}
+            />
+          </motion.div>
+        )}
+
+        {/* 5. プレビュー画面 */}
+        {currentStep === "preview" && (
+          <motion.div
+            key="preview"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <PreviewStep
+              processedImages={processedImages}
+              originalImages={originalImages}
+              isAnalyzing={isAnalyzing}
+              currentPreviewIndex={currentPreviewIndex}
+              setCurrentPreviewIndex={setCurrentPreviewIndex}
+              title={title}
+              description={description}
+              price={price}
+              status={status}
+              isSaving={isSaving}
+              setTitle={setTitle}
+              setDescription={setDescription}
+              setPrice={setPrice}
+              setStatus={setStatus}
+              onSave={saveItem}
+              onReset={reset}
+              onEditImage={() => {
+                console.log("Edit image clicked");
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * ホームページ（Root Page）
+ * Suspense境界を提供してuseSearchParams使用時のクライアントサイドレンダリングをサポート
+ */
+export default function Home() {
+  return (
+    <main className="min-h-screen bg-gray-50 pb-20">
+      <Suspense fallback={<AuthLoading />}>
+        <HomeContent />
+      </Suspense>
     </main>
   );
 }
