@@ -317,6 +317,7 @@ export default function HistoryPage() {
                             /* 選択モード */
                             <Reorder.Group
                                 axis="y"
+                                values={items}
                                 onReorder={reorderItems}
                                 className="flex flex-col gap-2"
                                 as="div"
