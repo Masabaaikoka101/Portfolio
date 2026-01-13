@@ -136,18 +136,33 @@ export function SiteHeader() {
         <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
             <div className="container flex h-16 items-center justify-between px-4">
                 {/* 左側: ロゴ + アプリ名 */}
-                <Link href="/history" onClick={handleLogoClick} className="flex items-center gap-1.5 group">
-                    <Image
-                        src="/logo.svg"
-                        alt="AXEL"
-                        width={40}
-                        height={40}
-                        className="object-contain transition-transform group-hover:scale-105"
-                    />
-                    <span className="text-lg font-bold text-gray-900 tracking-tight">
-                        AXEL
-                    </span>
-                </Link>
+                {user ? (
+                    <Link href="/history" onClick={handleLogoClick} className="flex items-center gap-1.5 group">
+                        <Image
+                            src="/logo.svg"
+                            alt="AXEL"
+                            width={40}
+                            height={40}
+                            className="object-contain transition-transform group-hover:scale-105"
+                        />
+                        <span className="text-lg font-bold text-gray-900 tracking-tight">
+                            AXEL
+                        </span>
+                    </Link>
+                ) : (
+                    <div className="flex items-center gap-1.5">
+                        <Image
+                            src="/logo.svg"
+                            alt="AXEL"
+                            width={40}
+                            height={40}
+                            className="object-contain"
+                        />
+                        <span className="text-lg font-bold text-gray-900 tracking-tight">
+                            AXEL
+                        </span>
+                    </div>
+                )}
 
                 {/* 右側: ナビゲーション（ログインページでは非表示） */}
                 {!isLoginPage && (

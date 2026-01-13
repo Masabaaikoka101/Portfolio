@@ -343,11 +343,7 @@ export default function LoginPage() {
                 </div>
 
                 {/* トップページへ戻る */}
-                <div className="mt-4 text-center">
-                    <Link href="/" className="text-xs text-gray-500 hover:underline">
-                        トップページに戻る
-                    </Link>
-                </div>
+
             </div>
         </div>
     );
