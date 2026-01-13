@@ -140,26 +140,26 @@ export function SiteHeader() {
                     <Link href="/history" onClick={handleLogoClick} className="flex items-center gap-1.5 group">
                         <Image
                             src="/logo.svg"
-                            alt="AXEL"
+                            alt="Pigro"
                             width={40}
                             height={40}
                             className="object-contain transition-transform group-hover:scale-105"
                         />
                         <span className="text-lg font-bold text-gray-900 tracking-tight">
-                            AXEL
+                            Pigro
                         </span>
                     </Link>
                 ) : (
                     <div className="flex items-center gap-1.5">
                         <Image
                             src="/logo.svg"
-                            alt="AXEL"
+                            alt="Pigro"
                             width={40}
                             height={40}
                             className="object-contain"
                         />
                         <span className="text-lg font-bold text-gray-900 tracking-tight">
-                            AXEL
+                            Pigro
                         </span>
                     </div>
                 )}

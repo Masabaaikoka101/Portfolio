@@ -278,7 +278,7 @@ export default function LoginPage() {
                     </h2>
                     <p className="mt-2 text-sm text-gray-600">
                         {isLogin
-                            ? "AXELを使って出品作業を効率化しましょう"
+                            ? "Pigroを使って出品作業を効率化しましょう"
                             : "すべての機能を使うには登録が必要です"}
                     </p>
                 </div>
