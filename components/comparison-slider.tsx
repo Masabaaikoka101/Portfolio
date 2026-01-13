@@ -45,7 +45,7 @@ export function ComparisonSlider({
     return (
         <div
             className={cn(
-                "relative w-full aspect-[4/3] select-none overflow-hidden rounded-xl border border-gray-200 shadow-sm bg-gray-100",
+                "relative w-full aspect-[4/3] select-none overflow-hidden rounded-xl border border-gray-200 shadow-sm bg-white",
                 className
             )}
         >
