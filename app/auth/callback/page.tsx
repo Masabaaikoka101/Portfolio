@@ -77,8 +77,8 @@ function AuthCallbackContent() {
                     }
                 }
 
-                // ホームにリダイレクト（window.location使用で確実に遷移）
-                window.location.href = "/";
+                // 履歴ページにリダイレクト（window.location使用で確実に遷移）
+                window.location.href = "/history";
             } catch (error) {
                 console.error("Callback error:", error);
                 toast.error("認証処理中にエラーが発生しました");
@@ -115,7 +115,7 @@ function AuthCallbackContent() {
             if (error) throw error;
 
             toast.success("パスワードを更新しました");
-            window.location.href = "/";
+            window.location.href = "/history";
         } catch (error) {
             console.error("Password update error:", error);
             toast.error("パスワードの更新に失敗しました");

@@ -70,7 +70,7 @@ export function EmptyState({ onFilesSelect, onModeChange, currentMode, isModeSel
                         className="inline-flex items-center gap-2 text-lg font-bold text-gray-900 hover:text-gray-600 transition-colors py-2 rounded-lg"
                     >
                         <ArrowLeft className="w-6 h-6" />
-                        商品一覧
+                        作成一覧
                     </Link>
                 </div>
 

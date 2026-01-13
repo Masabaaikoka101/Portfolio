@@ -308,7 +308,7 @@ export default function ItemDetailPage() {
                             <ArrowLeft className="h-5 w-5" />
                         </Button>
                         <h1 className="text-xl font-bold text-gray-900">
-                            {isEditing ? "商品を編集" : "商品一覧"}
+                            {isEditing ? "商品を編集" : "作成一覧"}
                         </h1>
                     </div>
 
