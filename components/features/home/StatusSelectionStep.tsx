@@ -246,6 +246,13 @@ export function StatusSelectionStep({
                                         </div>
                                     </div>
                                 )}
+                                {option.id === "white" && (
+                                    <div className="absolute top-0 right-0 z-10">
+                                        <span className="text-[10px] font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 px-1.5 py-0.5 rounded-bl-lg shadow-sm block">
+                                            推奨
+                                        </span>
+                                    </div>
+                                )}
                             </button>
                         ))}
                     </div>

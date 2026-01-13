@@ -21,9 +21,10 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { ImageUploader } from "@/components/image-uploader";
 import { ListingMode } from "@/hooks/use-item-form";
-import { Image as ImageIcon, Layers, ChevronLeft } from "lucide-react";
+import { Layers, ChevronLeft } from "lucide-react";
 
 /**
  * Props型
@@ -33,6 +34,12 @@ interface EmptyStateProps {
     onFilesSelect: (files: File[]) => void;
     /** モード変更時のコールバック */
     onModeChange: (mode: ListingMode) => void;
+    /** 現在のモード */
+    currentMode: ListingMode;
+    /** モードが選択済みかどうか */
+    isModeSelected: boolean;
+    /** モード選択に戻る */
+    onBack: () => void;
 }
 
 /**
@@ -44,55 +51,62 @@ interface EmptyStateProps {
  *
  * @param props - コンポーネントのprops
  */
-export function EmptyState({ onFilesSelect, onModeChange }: EmptyStateProps) {
-    const [selectedMode, setSelectedMode] = useState<ListingMode | null>(null);
+export function EmptyState({ onFilesSelect, onModeChange, currentMode, isModeSelected, onBack }: EmptyStateProps) {
+    // ローカルstateは削除し、propsで制御する
 
+    // モード選択ハンドラ
     const handleModeSelect = (mode: ListingMode) => {
-        setSelectedMode(mode);
         onModeChange(mode);
     };
 
-    const handleBackInfoModeSelection = () => {
-        setSelectedMode(null);
-        onModeChange("single"); // デフォルトに戻す
-    };
-
-    if (selectedMode === null) {
+    // モードが選択されていない場合はモード選択画面を表示
+    if (!isModeSelected) {
         return (
-            <div className="max-w-4xl mx-auto px-4">
-                <div className="text-center mb-12">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-4">出品方法を選択</h1>
-                    <p className="text-gray-600">AIがあなたの商品出品をサポートします</p>
+            <div className="flex flex-col items-center justify-center min-h-[400px] animate-in fade-in duration-500">
+                <div className="text-center mb-8">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">出品方法を選択</h2>
+                    <p className="text-gray-500">商品の数に合わせて最適な方法を選んでください</p>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-                    {/* 単品出品モード */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl px-4">
+                    {/* 単品出品 */}
                     <button
                         onClick={() => handleModeSelect("single")}
-                        className="flex flex-col items-center p-5 md:p-8 bg-white rounded-2xl border-2 border-transparent hover:border-blue-500 shadow-sm hover:shadow-md transition-all group text-left w-full h-full"
+                        className="group relative flex flex-col items-center p-8 bg-white rounded-2xl shadow-sm border-2 border-transparent hover:border-blue-500 transition-all duration-300 hover:shadow-xl"
                     >
-                        <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shrink-0">
-                            <ImageIcon className="w-8 h-8" />
+                        <div className="relative w-24 h-24 mb-6 transition-transform duration-300 group-hover:scale-110">
+                            <div className="absolute inset-0 bg-blue-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <div className="relative z-10 w-full h-full flex items-center justify-center text-blue-600">
+                                <Image
+                                    src="/icons/single-mode.svg"
+                                    alt="Single Listing"
+                                    fill
+                                    className="object-contain p-4"
+                                />
+                            </div>
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2 whitespace-nowrap">単品出品</h3>
-                        <p className="text-sm text-gray-500 text-center leading-relaxed w-full [text-wrap:balance] break-words">
-                            一つの商品を出品したいときに適しています
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">単品出品</h3>
+                        <p className="text-sm text-gray-500 text-center">
+                            1点ずつ丁寧に。<br />
+                            AIが最適な説明文を生成します
                         </p>
                     </button>
 
-                    {/* 一括出品モード */}
+                    {/* 一括出品 */}
                     <button
                         onClick={() => handleModeSelect("batch")}
-                        className="flex flex-col items-center p-5 md:p-8 bg-white rounded-2xl border-2 border-transparent hover:border-blue-500 shadow-sm hover:shadow-md transition-all group text-left relative overflow-hidden w-full h-full"
+                        className="group relative flex flex-col items-center p-8 bg-white rounded-2xl shadow-sm border-2 border-transparent hover:border-purple-500 transition-all duration-300 hover:shadow-xl"
                     >
-                        <div className="w-16 h-16 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shrink-0">
-                            <Layers className="w-8 h-8" />
+                        <div className="relative w-24 h-24 mb-6 transition-transform duration-300 group-hover:scale-110">
+                            <div className="absolute inset-0 bg-purple-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <div className="relative z-10 w-full h-full flex items-center justify-center text-purple-600">
+                                <Layers className="w-12 h-12" />
+                            </div>
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2 whitespace-nowrap">
-                            一括出品
-                        </h3>
-                        <p className="text-sm text-gray-500 text-center leading-relaxed w-full [text-wrap:balance] break-words">
-                            複数の商品を出品したいときに適しています
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">一括出品</h3>
+                        <p className="text-sm text-gray-500 text-center">
+                            まとめて効率的に。<br />
+                            複数商品を一気にリスト化します
                         </p>
                     </button>
                 </div>
@@ -100,26 +114,27 @@ export function EmptyState({ onFilesSelect, onModeChange }: EmptyStateProps) {
         );
     }
 
+    // モードが選択されている場合はアップローダーを表示
+    // 戻るボタンのハンドリングが必要かどうか？ (onModeChangeでリセットすれば良い)
+    // ここでは単純にUploaderを表示するが、戻るボタン機能のためにonBack的なものを渡すか、
+    // あるいは単純に onModeChange で null 相当のことをしてもらうか？
+    // useItemForm側で isModeSelected を false にする関数が必要。
+
     return (
-        <>
-            {/* ヘッダーテキスト */}
-            <div className="text-center mb-8 relative">
+        <div className="max-w-xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="mb-6 flex items-center justify-between">
                 <button
-                    onClick={handleBackInfoModeSelection}
-                    className="absolute left-0 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                    onClick={onBack}
+                    className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-1"
                 >
-                    <ChevronLeft className="w-6 h-6" />
+                    <ChevronLeft className="w-4 h-4" />
+                    モード選択に戻る
                 </button>
-                <h1 className="text-xl md:text-3xl font-bold text-gray-900 mb-2">
-                    {selectedMode === "single" ? "商品画像のアップロード" : "一括出品画像アップロード"}
-                </h1>
-                <p className="text-gray-600 text-sm md:text-base">
-                    {selectedMode === "single"
-                        ? "商品の写真をアップロードしてください"
-                        : "出品したい商品のメイン画像をすべてアップロードしてください"}
-                </p>
+                <span className="text-sm font-medium text-gray-900">
+                    {currentMode === "single" ? "単品出品モード" : "一括出品モード"}
+                </span>
             </div>
-            {/* アップローダーカード */}
+
             <div className="max-w-xl mx-auto bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100">
                 <ImageUploader
                     onFilesSelect={onFilesSelect}
@@ -127,6 +142,6 @@ export function EmptyState({ onFilesSelect, onModeChange }: EmptyStateProps) {
                     maxFiles={5}
                 />
             </div>
-        </>
+        </div>
     );
 }

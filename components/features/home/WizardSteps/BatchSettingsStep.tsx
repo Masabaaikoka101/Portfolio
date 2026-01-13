@@ -192,8 +192,15 @@ export function BatchSettingsStep({
                                     </SelectTrigger>
                                     <SelectContent>
                                         {BACKGROUND_OPTIONS.map((opt) => (
-                                            <SelectItem key={opt.value} value={opt.value}>
-                                                {opt.label}
+                                            <SelectItem key={opt.value} value={opt.value} className="cursor-pointer">
+                                                <div className="flex items-center gap-2">
+                                                    <span>{opt.label}</span>
+                                                    {opt.value === "white" && (
+                                                        <span className="text-[10px] font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 px-2 py-0.5 rounded-full shadow-sm">
+                                                            推奨
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -245,8 +252,15 @@ export function BatchSettingsStep({
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {BACKGROUND_OPTIONS.map((opt) => (
-                                                    <SelectItem key={opt.value} value={opt.value}>
-                                                        {opt.label}
+                                                    <SelectItem key={opt.value} value={opt.value} className="cursor-pointer">
+                                                        <div className="flex items-center gap-2">
+                                                            <span>{opt.label}</span>
+                                                            {opt.value === "white" && (
+                                                                <span className="text-[10px] font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 px-2 py-0.5 rounded-full shadow-sm">
+                                                                    推奨
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
