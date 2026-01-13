@@ -82,7 +82,7 @@ export function ItemCard({
     return (
         <div
             className={cn(
-                "bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer",
+                "bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group",
                 isEditMode && "select-none",
                 className
             )}
@@ -91,7 +91,7 @@ export function ItemCard({
         >
             {/* 画像エリア + 価格オーバーレイ - ドラッグ可能 */}
             <div
-                className="relative aspect-square bg-gray-100"
+                className="relative aspect-square bg-gray-100 overflow-hidden"
                 draggable={!isEditMode}
             >
                 <Image
@@ -107,8 +107,12 @@ export function ItemCard({
                     sizes="(max-width: 768px) 50vw, 25vw"
                     draggable={!isEditMode}
                 />
+
+                {/* ホバー時の白オーバーレイ */}
+                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-25 transition-opacity duration-200 pointer-events-none" />
+
                 {/* 価格バッジ */}
-                <div className="absolute bottom-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-sm font-bold">
+                <div className="absolute bottom-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-sm font-bold z-10">
                     ¥{price.toLocaleString()}
                 </div>
             </div>

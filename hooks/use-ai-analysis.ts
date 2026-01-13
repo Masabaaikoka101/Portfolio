@@ -23,7 +23,7 @@
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { AiService } from "@/services/ai.service";
-import { AnalyzeResponse } from "@/types";
+import { AnalyzeResponse, BatchItem } from "@/types";
 
 /**
  * フックのProps型
@@ -46,6 +46,12 @@ interface UseAiAnalysisProps {
     onImageEditSuccess: (imageUrl: string) => void;
     /** 画像編集スキップ時のコールバック */
     onImageEditSkip: () => void;
+    /** モード */
+    mode?: "single" | "batch";
+    /** バッチアイテム設定 */
+    batchItems?: BatchItem[];
+    /** バッチアイテム分析完了コールバック */
+    onBatchItemAnalyzed?: (index: number, result: AnalyzeResponse) => void;
 }
 
 /**
@@ -65,12 +71,18 @@ export function useAiAnalysis({
     backgroundType,
     onAnalysisSuccess,
     onImageProcessed,
+    mode = "single",
+    batchItems = [],
+    onBatchItemAnalyzed,
 }: {
     selectedFiles: File[];
     status: string;
     backgroundType: string;
     onAnalysisSuccess: (result: AnalyzeResponse) => void;
     onImageProcessed: (index: number, imageUrl: string | null) => void;
+    mode?: "single" | "batch";
+    batchItems?: BatchItem[];
+    onBatchItemAnalyzed?: (index: number, result: AnalyzeResponse) => void;
 }) {
     /** テキスト生成中フラグ */
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -84,49 +96,162 @@ export function useAiAnalysis({
      * - 各画像の処理完了タイミングで即座にUIへ反映させるため（UX向上）
      * - すべての完了を待つと、ユーザーを待たせる時間が長くなる
      */
-    const startAnalysis = useCallback(async () => {
-        if (!selectedFiles || selectedFiles.length === 0) return;
+
+    /** 各アイテムごとのテキスト生成中フラグ（インデックス対応） */
+    const [analyzingStates, setAnalyzingStates] = useState<boolean[]>([]);
+
+    // ...
+
+    const startAnalysis = useCallback(async (targetFiles?: File[], targetIndices?: number[]) => {
+        const filesToProcess = targetFiles || selectedFiles;
+        if (!filesToProcess || filesToProcess.length === 0) return;
 
         setIsAnalyzing(true);
         setIsEditingImage(true);
 
-        // 1. テキスト生成（メイン画像のみ使用）
-        const textAnalysisPromise = AiService.analyzeItem(selectedFiles[0], status)
-            .then((result) => {
-                onAnalysisSuccess(result);
-            })
-            .catch((error) => {
-                console.error("Analysis failed:", error);
-                toast.error("テキスト生成に失敗しました");
-            })
-            .finally(() => {
-                setIsAnalyzing(false);
-            });
+        const getRealIndex = (i: number) => targetIndices ? targetIndices[i] : i;
 
-        // 2. 画像編集（全画像並列実行）
-        const imageEditPromises = selectedFiles.map(async (file, index) => {
-            try {
-                const result = await AiService.editImage(file, backgroundType);
-                if (result.success && result.imageUrl) {
-                    onImageProcessed(index, result.imageUrl);
-                } else {
-                    // 失敗時はnullを返し、親側でオリジナル画像へのフォールバックを処理
-                    onImageProcessed(index, null);
-                    if (result.error) console.error(`Image ${index} edit failed:`, result.error);
-                }
-            } catch (error) {
-                console.error(`Image ${index} edit exception:`, error);
-                onImageProcessed(index, null);
-            }
+        // 対象インデックスのローディング状態をtrueにする
+        setAnalyzingStates(prev => {
+            const next = [...prev];
+            // 配列サイズが足りない場合は拡張
+            const maxIndex = targetIndices
+                ? Math.max(...targetIndices)
+                : filesToProcess.length - 1;
+
+            while (next.length <= maxIndex) next.push(false);
+
+            filesToProcess.forEach((_, i) => {
+                const index = getRealIndex(i);
+                next[index] = true;
+            });
+            return next;
         });
 
-        // 全ての処理完了を待って編集モード終了
-        // Note: 個別の更新はonImageProcessedで行われるため、ここで待つのは
-        // isEditingImageフラグをOFFにするためだけ
-        await Promise.all([textAnalysisPromise, ...imageEditPromises]);
+        if (mode === "batch") {
+            const promises = filesToProcess.map(async (file, i) => {
+                const index = getRealIndex(i);
+                const itemSetting = batchItems[index];
+
+                if (!itemSetting) {
+                    console.warn(`Batch item setting not found for index ${index}. Skipping analysis.`);
+                    // 設定がない場合でも処理完了とみなさないとローディングが終わらない
+                    onImageProcessed(index, null);
+                    // テキスト分析ステートも解除
+                    setAnalyzingStates(prev => {
+                        const next = [...prev];
+                        next[index] = false;
+                        return next;
+                    });
+                    return;
+                }
+
+                const textPromise = AiService.analyzeItem(file, itemSetting.status)
+                    .then((result) => {
+                        onBatchItemAnalyzed?.(index, result);
+                        setAnalyzingStates(prev => {
+                            const next = [...prev];
+                            next[index] = false;
+                            return next;
+                        });
+                    })
+                    .catch((error) => {
+                        console.error(`Batch Analysis failed [${index}]:`, error);
+                        setAnalyzingStates(prev => {
+                            const next = [...prev];
+                            next[index] = false;
+                            return next;
+                        });
+                    });
+
+                const bgType = itemSetting.backgroundType;
+                const imagePromise = AiService.editImage(file, bgType)
+                    .then((result) => {
+                        if (result.success && result.imageUrl) {
+                            onImageProcessed(index, result.imageUrl);
+                        } else {
+                            onImageProcessed(index, null);
+                        }
+                    })
+                    .catch((error) => {
+                        console.error(`Batch Image Edit failed [${index}]:`, error);
+                        onImageProcessed(index, null);
+                    });
+
+                await Promise.all([textPromise, imagePromise]);
+            });
+
+            await Promise.all(promises);
+
+        } else {
+            const shouldAnalyzeText = !targetIndices || targetIndices.includes(0);
+
+            let textAnalysisPromise = Promise.resolve();
+            if (shouldAnalyzeText) {
+                // テキスト生成
+                textAnalysisPromise = AiService.analyzeItem(filesToProcess[0], status)
+                    .then((result) => {
+                        onAnalysisSuccess(result);
+                    })
+                    .catch((error) => {
+                        console.error("Analysis failed:", error);
+                        toast.error("テキスト生成に失敗しました");
+                    })
+                    .finally(() => {
+                        // テキスト生成完了時点でフラグを下げる
+                        setIsAnalyzing(false);
+                    });
+            } else {
+                // テキスト生成不要なら即座にfalse
+                setIsAnalyzing(false);
+            }
+
+            const imageEditPromises = filesToProcess.map(async (file, i) => {
+                const index = getRealIndex(i);
+                try {
+                    console.log(`[AiAnalysis] Starting image edit for index ${index}. Background: ${backgroundType}`);
+                    const result = await AiService.editImage(file, backgroundType);
+
+                    if (result.success && result.imageUrl) {
+                        console.log(`[AiAnalysis] Image ${index} edit success.`);
+                        onImageProcessed(index, result.imageUrl);
+                    } else {
+                        // 失敗時は null を返すが、呼び出し元でこれを「オリジナル画像の使用」として扱えるようにする必要がある
+                        // 現状は null だとローディング扱いになる可能性がある
+                        console.warn(`[AiAnalysis] Image ${index} edit failed/skipped:`, result.error);
+                        onImageProcessed(index, null);
+                        if (result.error) {
+                            toast.warning(`画像${index + 1}: 背景加工に失敗しました (${result.error})`);
+                        }
+                    }
+                } catch (error) {
+                    console.error(`[AiAnalysis] Image ${index} edit exception:`, error);
+                    onImageProcessed(index, null);
+                    toast.error(`画像${index + 1}: 予期せぬエラーが発生しました`);
+                } finally {
+                    // 画像処理完了時にローディングフラグを下げる
+                    setAnalyzingStates(prev => {
+                        const next = [...prev];
+                        next[index] = false;
+                        return next;
+                    });
+                }
+            });
+
+            // 画像生成はすべて終わるまで待つ（isEditingImageの制御）
+            await Promise.all(imageEditPromises);
+            setIsEditingImage(false);
+
+            // 全体完了待ちは呼び出し元にPromiseを返すなら必要だが、
+            // ここでは内部ステート更新が主なので、await Promise.all([textAnalysisPromise, ...imageEditPromises]) は不要になった。
+            // ただし、startAnalysis自体をawaitしている箇所があるかもしれないので、念のため待つ。
+            await Promise.all([textAnalysisPromise, ...imageEditPromises]);
+        }
+
+        setIsAnalyzing(false);
         setIsEditingImage(false);
 
-    }, [selectedFiles, status, backgroundType, onAnalysisSuccess, onImageProcessed]);
+    }, [selectedFiles, status, backgroundType, onAnalysisSuccess, onImageProcessed, mode, batchItems, onBatchItemAnalyzed]);
 
     return {
         /** テキスト生成中かどうか */
@@ -135,5 +260,7 @@ export function useAiAnalysis({
         isEditingImage,
         /** 分析を開始する関数 */
         startAnalysis,
+        /** 各アイテムごとの分析ステータス */
+        analyzingStates,
     };
 }

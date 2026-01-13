@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { useNavigationGuard } from "@/contexts/navigation-guard-context";
 
 /**
  * サイトヘッダーコンポーネント
@@ -53,6 +54,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 export function SiteHeader() {
     const pathname = usePathname();
     const router = useRouter();
+    const { confirmNavigation } = useNavigationGuard();
 
     const [isHelpOpen, setIsHelpOpen] = useState(false);
 
@@ -89,6 +91,9 @@ export function SiteHeader() {
      * ログアウト処理
      */
     const handleLogout = async () => {
+        // ナビゲーションガードの確認
+        if (!confirmNavigation()) return;
+
         const { error } = await supabase.auth.signOut();
         if (error) {
             toast.error("ログアウトに失敗しました");
@@ -110,15 +115,28 @@ export function SiteHeader() {
      * 新規作成ボタンクリック → トップページへ遷移（リセットフラグ付き）
      */
     const handleNewClick = () => {
+        // ナビゲーションガードの確認
+        if (!confirmNavigation()) return;
+
         // トップページへ遷移し、フォームをリセットするためのクエリパラメータを付与
         router.push("/?reset=true");
+    };
+
+    /**
+     * ロゴクリックハンドラー
+     */
+    const handleLogoClick = (e: React.MouseEvent) => {
+        // ナビゲーションガードの確認
+        if (!confirmNavigation()) {
+            e.preventDefault();
+        }
     };
 
     return (
         <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
             <div className="container flex h-16 items-center justify-between px-4">
                 {/* 左側: ロゴ + アプリ名 */}
-                <Link href="/history" className="flex items-center gap-1.5 group">
+                <Link href="/history" onClick={handleLogoClick} className="flex items-center gap-1.5 group">
                     <Image
                         src="/logo.svg"
                         alt="AXEL"
@@ -161,7 +179,7 @@ export function SiteHeader() {
                                         <div>
                                             <h3 className="font-semibold text-gray-900">ログイン・新規登録</h3>
                                             <p className="text-sm text-gray-600">
-                                                まずログインして、あなた専用のデータを管理しましょう
+                                                まずログインして、あなた専用のデータ管理しましょう
                                             </p>
                                         </div>
                                     </div>
