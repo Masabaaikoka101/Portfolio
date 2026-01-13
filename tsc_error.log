@@ -1,0 +1,18 @@
+﻿app/api/edit-image/route.ts(223,27): error TS2820: Type '"HARM_CATEGORY_HARASSMENT"' is not assignable to type 'HarmCategory | undefined'. Did you mean 'HarmCategory.HARM_CATEGORY_IMAGE_HARASSMENT'?
+app/api/edit-image/route.ts(223,65): error TS2322: Type '"BLOCK_NONE"' is not assignable to type 'HarmBlockThreshold | undefined'.
+app/api/edit-image/route.ts(224,27): error TS2322: Type '"HARM_CATEGORY_HATE_SPEECH"' is not assignable to type 'HarmCategory | undefined'.
+app/api/edit-image/route.ts(224,66): error TS2322: Type '"BLOCK_NONE"' is not assignable to type 'HarmBlockThreshold | undefined'.
+app/api/edit-image/route.ts(225,27): error TS2820: Type '"HARM_CATEGORY_SEXUALLY_EXPLICIT"' is not assignable to type 'HarmCategory | undefined'. Did you mean 'HarmCategory.HARM_CATEGORY_IMAGE_SEXUALLY_EXPLICIT'?
+app/api/edit-image/route.ts(225,72): error TS2322: Type '"BLOCK_NONE"' is not assignable to type 'HarmBlockThreshold | undefined'.
+app/api/edit-image/route.ts(226,27): error TS2820: Type '"HARM_CATEGORY_DANGEROUS_CONTENT"' is not assignable to type 'HarmCategory | undefined'. Did you mean 'HarmCategory.HARM_CATEGORY_IMAGE_DANGEROUS_CONTENT'?
+app/api/edit-image/route.ts(226,72): error TS2322: Type '"BLOCK_NONE"' is not assignable to type 'HarmBlockThreshold | undefined'.
+app/history/page.tsx(143,36): error TS2304: Cannot find name 'processBatch'.
+app/items/[id]/page.tsx(45,54): error TS2345: Argument of type '""' is not assignable to parameter of type '"譁ｰ蜩√∵悴菴ｿ逕ｨ" | "譛ｪ菴ｿ逕ｨ縺ｫ霑代＞" | "逶ｮ遶九▲縺溷す繧・ｱ壹ｌ縺ｪ縺・ | "繧・ｄ蛯ｷ繧・ｱ壹ｌ縺ゅｊ" | "蛯ｷ繧・ｱ壹ｌ縺ゅｊ" | "蜈ｨ菴鍋噪縺ｫ迥ｶ諷九′謔ｪ縺・ | (() => "譁ｰ蜩√∵悴菴ｿ逕ｨ" | "譛ｪ菴ｿ逕ｨ縺ｫ霑代＞" | "逶ｮ遶九▲縺溷す繧・ｱ壹ｌ縺ｪ縺・ | "繧・ｄ蛯ｷ繧・ｱ壹ｌ縺ゅｊ" | "蛯ｷ繧・ｱ壹ｌ縺ゅｊ" | "蜈ｨ菴鍋噪縺ｫ迥ｶ諷九′謔ｪ縺・)'.
+components/features/home/WizardSteps/BatchSettingsStep.tsx(28,10): error TS2300: Duplicate identifier 'ItemStatus'.
+components/features/home/WizardSteps/BatchSettingsStep.tsx(30,10): error TS2300: Duplicate identifier 'ItemStatus'.
+components/features/home/WizardSteps/ImageOrderingStep.tsx(108,29): error TS17001: JSX elements cannot have multiple attributes with the same name.
+hooks/use-item-form.ts(454,9): error TS1117: An object literal cannot have multiple properties with the same name.
+hooks/use-item-form.ts(455,9): error TS1117: An object literal cannot have multiple properties with the same name.
+hooks/use-item-form.ts(456,9): error TS1117: An object literal cannot have multiple properties with the same name.
+services/ai.service.ts(121,17): error TS2322: Type 'null' is not assignable to type 'string | undefined'.
+types/index.ts(43,13): error TS2304: Cannot find name 'ItemStatus'.

@@ -451,9 +451,6 @@ export function useItemForm(options?: UseItemFormOptions) {
         isAnalyzing,
         analyzingStates,
         isEditingImage,
-        analyzingStates,
-        isEditingImage,
-        isEditingImage,
         isSaving,
 
         // ウィザードステップ

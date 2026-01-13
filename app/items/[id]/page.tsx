@@ -42,7 +42,7 @@ export default function ItemDetailPage() {
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [price, setPrice] = useState(0);
-    const [status, setStatus] = useState<ItemStatus>("");
+    const [status, setStatus] = useState<ItemStatus | "">("");
 
     // Image selection state
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -358,7 +358,7 @@ export default function ItemDetailPage() {
                             title={title}
                             description={description}
                             price={price}
-                            status={status}
+                            status={status || undefined}
                             editable={isEditing} // Toggle edit mode
                             onTitleChange={setTitle}
                             onDescriptionChange={setDescription}

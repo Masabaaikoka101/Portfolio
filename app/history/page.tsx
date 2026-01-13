@@ -24,7 +24,7 @@ import { Loader2, Trash2, CheckSquare, Square, X, GripVertical, Download } from 
 import { useItemList } from "@/hooks/use-item-list";
 import { useItemSelection } from "@/hooks/use-item-selection";
 import { useBatchJob } from "@/contexts/BatchJobContext";
-// import { useBatchAnalysis } from "@/hooks/use-batch-analysis";
+import { useBatchAnalysis } from "@/hooks/use-batch-analysis";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBulkDownload } from "@/hooks/use-bulk-download";
 
@@ -57,6 +57,7 @@ export default function HistoryPage() {
 
     // 一括生成処理 (Contextから取得)
     const { isProcessing, progress, total } = useBatchJob();
+    const { processBatch } = useBatchAnalysis();
 
     // 一括ダウンロード
     const { isDownloading, downloadItems } = useBulkDownload();

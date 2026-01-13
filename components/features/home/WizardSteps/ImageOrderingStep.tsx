@@ -93,10 +93,8 @@ export function ImageOrderingStep({
                     )}>
                         {/* ドラッグ可能な画像エリア */}
                         <Reorder.Group
-                            axis={isBatch ? "y" : "x"} // Batchなら縦スクロール想定でy軸、いやgridだからlayoutが必要？ Reorder.Groupでgridは難しいオプション。
-                            // Reorder.Group for grid needs special handling usually. 
-                            // For simplicity, let's keep it 'x' if it flows, or just 'y' if list.
-                            // With grid-cols-4, axis="y" might be weird if elements flow horizontally.
+                            // axis={isBatch ? "y" : "x"} // Removed duplicate/conditional to respect single axis="x" below
+
                             // Wait, Reorder doesn't support grid layout natively perfectly without specific config.
                             // If isBatch, let's keep it simple: Just list them? 
                             // Or use axis="x" and rely on flex wrap logic if Reorder supports "contents".

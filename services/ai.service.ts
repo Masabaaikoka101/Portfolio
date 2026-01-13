@@ -118,7 +118,7 @@ export const AiService = {
             // エラーをthrowせず、失敗結果として返す
             return {
                 success: false,
-                imageUrl: null,
+                imageUrl: undefined,
                 error: `Image editing failed: ${errorDetail}`
             };
         }
