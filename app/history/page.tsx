@@ -295,11 +295,12 @@ export default function HistoryPage() {
 
                         {/* 生成中スケルトン (通常モード時のみグリッド表示、編集モード時は非表示推奨だがとりあえず出す) */}
                         {!isEditMode && pendingCount > 0 && [...Array(pendingCount)].map((_, i) => (
-                            <div key={`skeleton-${i}`} className="flex flex-col gap-2 animate-pulse">
-                                <div className="aspect-[3/4] w-full bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl relative overflow-hidden border-2 border-indigo-100 border-dashed">
-                                    <div className="absolute inset-0 flex items-center justify-center flex-col text-indigo-300">
-                                        <Loader2 className="h-8 w-8 animate-spin mb-2" />
-                                        <span className="text-xs font-bold">Generating...</span>
+                            <div key={`skeleton-${i}`} className="flex flex-col gap-2">
+                                <div className="relative aspect-[3/4] w-full rounded-xl overflow-hidden">
+                                    <Skeleton className="h-full w-full" />
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 z-10 bg-white/30 backdrop-blur-[1px]">
+                                        <Loader2 className="h-8 w-8 animate-spin mb-2 text-indigo-500" />
+                                        <span className="text-xs font-bold text-indigo-600">生成中...</span>
                                     </div>
                                 </div>
                                 <Skeleton className="h-4 w-2/3" />
