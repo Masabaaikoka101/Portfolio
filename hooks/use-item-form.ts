@@ -69,6 +69,15 @@ export function useItemForm(options?: UseItemFormOptions) {
     // 0. モード管理 & Batch状態
     // =========================================================================
     const [mode, setMode] = useState<ListingMode>("single");
+    const [isModeSelected, setIsModeSelected] = useState(false);
+
+    /**
+     * モード選択ハンドラ
+     */
+    const selectMode = useCallback((newMode: ListingMode) => {
+        setMode(newMode);
+        setIsModeSelected(true);
+    }, []);
 
     const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
 
@@ -421,20 +430,10 @@ export function useItemForm(options?: UseItemFormOptions) {
     }, [performAnalysis, mode, startBatchJob, selectedFiles, batchItems]);
 
 
-    // =========================================================================
-    // 5. リセット処理
-    // =========================================================================
-    const [isModeSelected, setIsModeSelected] = useState(false);
-
-    const selectMode = (newMode: ListingMode) => {
-        setMode(newMode);
-        setIsModeSelected(true);
-    };
-
     /**
      * フォームの状態をリセット
      */
-    const reset = (options?: { keepMode?: boolean }) => {
+    const reset = useCallback((options?: { keepMode?: boolean }) => {
         // 画像は維持しない（要件によるが、「画像を変更」なら画像はリセットでOK）
         setOriginalImages([]);
         setProcessedImages([]);
@@ -444,10 +443,8 @@ export function useItemForm(options?: UseItemFormOptions) {
         if (!options?.keepMode) {
             setMode("single");
             setIsModeSelected(false);
-        } else {
-            // モードは維持、選択済み状態も維持
-            setIsModeSelected(true);
         }
+        // keepMode: trueの場合は何もしない（modeとisModeSelectedを維持）
 
         setStatus("新品、未使用");
         setBackgroundType("white");
@@ -457,7 +454,7 @@ export function useItemForm(options?: UseItemFormOptions) {
         setCurrentPreviewIndex(0);
         setBatchItems([]);
         setAnalyzingStates([]);
-    };
+    }, [resetImage, setOriginalImages, setProcessedImages]);
 
     // =========================================================================
     // 6. 戻り値（UIコンポーネントで使用）
@@ -479,6 +476,8 @@ export function useItemForm(options?: UseItemFormOptions) {
         // ウィザードステップ
         currentStep,
         mode,
+        isModeSelected, // Added
+        selectMode,     // Added
         setMode,
         goToNextStep,
         goToPrevStep,
