@@ -21,10 +21,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import Image from "next/image";
 import { ImageUploader } from "@/components/image-uploader";
 import { ListingMode } from "@/hooks/use-item-form";
-import { Layers, ChevronLeft } from "lucide-react";
+import { Layers, ChevronLeft, ArrowLeft } from "lucide-react";
 
 /**
  * Props型
@@ -62,53 +63,65 @@ export function EmptyState({ onFilesSelect, onModeChange, currentMode, isModeSel
     // モードが選択されていない場合はモード選択画面を表示
     if (!isModeSelected) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] animate-in fade-in duration-500">
-                <div className="text-center mb-8">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">出品方法を選択</h2>
-                    <p className="text-gray-500">商品の数に合わせて最適な方法を選んでください</p>
+            <div className="flex flex-col min-h-[400px] animate-in fade-in duration-500">
+                <div className="w-full mb-8">
+                    <Link
+                        href="/history"
+                        className="inline-flex items-center gap-2 text-lg font-bold text-gray-900 hover:text-gray-600 transition-colors py-2 rounded-lg"
+                    >
+                        <ArrowLeft className="w-6 h-6" />
+                        商品一覧
+                    </Link>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl px-4">
-                    {/* 単品出品 */}
-                    <button
-                        onClick={() => handleModeSelect("single")}
-                        className="group relative flex flex-col items-center p-8 bg-white rounded-2xl shadow-sm border-2 border-transparent hover:border-blue-500 transition-all duration-300 hover:shadow-xl"
-                    >
-                        <div className="relative w-24 h-24 mb-6 transition-transform duration-300 group-hover:scale-110">
-                            <div className="absolute inset-0 bg-blue-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                            <div className="relative z-10 w-full h-full flex items-center justify-center text-blue-600">
-                                <Image
-                                    src="/icons/single-mode.svg"
-                                    alt="Single Listing"
-                                    fill
-                                    className="object-contain p-4"
-                                />
-                            </div>
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-2">単品出品</h3>
-                        <p className="text-sm text-gray-500 text-center">
-                            1点ずつ丁寧に。<br />
-                            AIが最適な説明文を生成します
-                        </p>
-                    </button>
+                <div className="flex flex-col items-center justify-center flex-1 w-full">
+                    <div className="text-center mb-8">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">出品方法を選択</h2>
+                        <p className="text-gray-500">商品の数に合わせて最適な方法を選んでください</p>
+                    </div>
 
-                    {/* 一括出品 */}
-                    <button
-                        onClick={() => handleModeSelect("batch")}
-                        className="group relative flex flex-col items-center p-8 bg-white rounded-2xl shadow-sm border-2 border-transparent hover:border-purple-500 transition-all duration-300 hover:shadow-xl"
-                    >
-                        <div className="relative w-24 h-24 mb-6 transition-transform duration-300 group-hover:scale-110">
-                            <div className="absolute inset-0 bg-purple-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                            <div className="relative z-10 w-full h-full flex items-center justify-center text-purple-600">
-                                <Layers className="w-12 h-12" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl px-4">
+                        {/* 単品出品 */}
+                        <button
+                            onClick={() => handleModeSelect("single")}
+                            className="group relative flex flex-col items-center p-8 bg-white rounded-2xl shadow-sm border-2 border-transparent hover:border-blue-500 transition-all duration-300 hover:shadow-xl"
+                        >
+                            <div className="relative w-24 h-24 mb-6 transition-transform duration-300 group-hover:scale-110">
+                                <div className="absolute inset-0 bg-blue-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                <div className="relative z-10 w-full h-full flex items-center justify-center text-blue-600">
+                                    <Image
+                                        src="/icons/single-mode.svg"
+                                        alt="Single Listing"
+                                        fill
+                                        className="object-contain p-4"
+                                    />
+                                </div>
                             </div>
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-2">一括出品</h3>
-                        <p className="text-sm text-gray-500 text-center">
-                            まとめて効率的に。<br />
-                            複数商品を一気にリスト化します
-                        </p>
-                    </button>
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">単品出品</h3>
+                            <p className="text-sm text-gray-500 text-center">
+                                1点ずつ丁寧に。<br />
+                                AIが最適な説明文を生成します
+                            </p>
+                        </button>
+
+                        {/* 一括出品 */}
+                        <button
+                            onClick={() => handleModeSelect("batch")}
+                            className="group relative flex flex-col items-center p-8 bg-white rounded-2xl shadow-sm border-2 border-transparent hover:border-purple-500 transition-all duration-300 hover:shadow-xl"
+                        >
+                            <div className="relative w-24 h-24 mb-6 transition-transform duration-300 group-hover:scale-110">
+                                <div className="absolute inset-0 bg-purple-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                <div className="relative z-10 w-full h-full flex items-center justify-center text-purple-600">
+                                    <Layers className="w-12 h-12" />
+                                </div>
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">一括出品</h3>
+                            <p className="text-sm text-gray-500 text-center">
+                                まとめて効率的に。<br />
+                                複数商品を一気にリスト化します
+                            </p>
+                        </button>
+                    </div>
                 </div>
             </div>
         );
