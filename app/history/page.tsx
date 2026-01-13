@@ -272,7 +272,7 @@ export default function HistoryPage() {
 
                 {/* Content */}
                 {loading && items.length === 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                         {[...Array(10)].map((_, i) => (
                             <div key={i} className="flex flex-col gap-2">
                                 <Skeleton className="aspect-[3/4] w-full rounded-xl" />
@@ -291,7 +291,7 @@ export default function HistoryPage() {
                         </Link>
                     </div>
                 ) : (
-                    <div className={isEditMode ? "" : "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"}>
+                    <div className={isEditMode ? "" : "grid grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-4"}>
 
                         {/* 生成中スケルトン (通常モード時のみグリッド表示、編集モード時は非表示推奨だがとりあえず出す) */}
                         {!isEditMode && pendingCount > 0 && [...Array(pendingCount)].map((_, i) => (
