@@ -104,9 +104,23 @@ export const AiService = {
         });
 
         if (!response.ok) {
-            // 画像編集の失敗は致命的ではない
-            // 呼び出し元でPromise.allSettledを使う前提でエラーをthrow
-            throw new Error(`Image editing failed: ${response.statusText}`);
+            let errorDetail = response.statusText;
+            try {
+                const errorData = await response.json();
+                if (errorData.details) {
+                    errorDetail = `${errorData.error} - ${errorData.details}`;
+                } else if (errorData.error) {
+                    errorDetail = errorData.error;
+                }
+            } catch (e) {
+                // ignore
+            }
+            // エラーをthrowせず、失敗結果として返す
+            return {
+                success: false,
+                imageUrl: null,
+                error: `Image editing failed: ${errorDetail}`
+            };
         }
 
         return response.json();
