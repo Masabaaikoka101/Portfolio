@@ -22,7 +22,7 @@
  */
 
 import { supabase } from "@/lib/supabase";
-import { DEFAULTS } from "@/lib/constants";
+import { DEFAULTS, SYSTEM_TAG_PREFIX } from "@/lib/constants";
 import { ItemFormState } from "@/types";
 
 /**
@@ -59,9 +59,18 @@ export const ItemService = {
     async uploadImage(fileBlob: Blob, userId: string): Promise<string> {
         const fileName = `${userId}/${Date.now()}.png`;
 
-        const { error: uploadError } = await supabase.storage
+        // タイムアウトPromiseを用意 (30秒)
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Supabase Upload Timeout")), 30000)
+        );
+
+        // Upload処理
+        const uploadPromise = supabase.storage
             .from("item-images")
             .upload(fileName, fileBlob, { contentType: "image/png" });
+
+        // @ts-expect-error - Result type inference
+        const { error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]) as Awaited<ReturnType<typeof supabase.storage.from>>;
 
         if (uploadError) {
             throw new Error(`Image upload failed: ${uploadError.message}`);
@@ -98,8 +107,17 @@ export const ItemService = {
         userId: string,
         imageUrl: string,
         formState: ItemFormState,
-        tags: string[] = []
+        tags: string[] = [],
+        backgroundType?: string
     ): Promise<void> {
+        // システムタグ処理: 背景設定があればタグに追加
+        let finalTags = [...tags];
+        if (backgroundType) {
+            // 既存の背景タグがあれば削除（上書き）
+            finalTags = finalTags.filter(t => !t.startsWith(SYSTEM_TAG_PREFIX));
+            finalTags.push(`${SYSTEM_TAG_PREFIX}${backgroundType}`);
+        }
+
         // まずはother_imagesを含めて保存を試みる
         const fullData = {
             user_id: userId,
@@ -110,7 +128,7 @@ export const ItemService = {
             price: formState.price,
             status: formState.status,
             category: DEFAULTS.category,
-            tags: tags,
+            tags: finalTags,
         };
 
         const { error: dbError } = await supabase.from("items").insert(fullData);

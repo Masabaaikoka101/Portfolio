@@ -28,7 +28,7 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ItemService } from "@/services/item.service";
-import { ItemFormState } from "@/types";
+import { ItemFormState, BatchItem } from "@/types";
 
 /**
  * 商品保存フック
@@ -72,7 +72,8 @@ export function useItemStorage() {
     const saveItem = useCallback(async (
         processedImages: (string | null)[],
         formState: ItemFormState,
-        onSuccess?: () => void
+        onSuccess?: () => void,
+        backgroundType?: string
     ) => {
         // バリデーション：有効な画像が少なくとも1つあること
         const validImages = processedImages.filter((img): img is string => !!img);
@@ -116,7 +117,7 @@ export function useItemStorage() {
                 other_images: otherImages
             };
 
-            await ItemService.saveItem(user.id, mainImageUrl, finalFormState);
+            await ItemService.saveItem(user.id, mainImageUrl, finalFormState, [], backgroundType);
 
             // 4. 成功処理
             toast.success("保存しました！");
@@ -134,10 +135,87 @@ export function useItemStorage() {
         }
     }, [router]);
 
+    /**
+     * 一括出品の商品を保存
+     */
+    const saveBatchItems = useCallback(async (
+        processedImages: (string | null)[],
+        originalImages: string[],
+        batchItems: BatchItem[],
+        onSuccess?: () => void
+    ) => {
+        // バリデーション：画像と設定の数があっているか
+        if (processedImages.length === 0 || batchItems.length === 0) {
+            toast.error("保存する商品がありません");
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const user = await ItemService.getCurrentUser();
+            if (!user) {
+                toast.error("ログインが必要です");
+                router.push("/login");
+                return;
+            }
+
+            // 全アイテムを並列処理
+            const savePromises = batchItems.map(async (item, index) => {
+                // 画像の準備 (処理済みがあればそれ、なければオリジナル)
+                const imageStr = processedImages[index] ?? originalImages[index];
+                if (!imageStr) return; // 画像がない場合はスキップ
+
+                try {
+                    // 画像アップロード
+                    let imageToUpload: Blob;
+                    if (imageStr.startsWith("data:") || imageStr.startsWith("blob:")) {
+                        const response = await fetch(imageStr);
+                        imageToUpload = await response.blob();
+                    } else {
+                        // すでにURLの場合はアップロード不要だが、現状のフローでは全てDataURL前提
+                        // URLの場合はスキップするか、再利用を検討（今回はDataURLのみ対応）
+                        console.warn(`Item ${index}: Image is not a data URL, skipping upload`);
+                        return;
+                    }
+                    const uploadedUrl = await ItemService.uploadImage(imageToUpload, user.id);
+
+                    // DB保存
+                    const formState: ItemFormState = {
+                        title: item.title,
+                        description: item.description,
+                        price: item.price,
+                        status: item.status,
+                        other_images: [] // 一括出品は現状1枚のみ
+                    };
+
+                    await ItemService.saveItem(user.id, uploadedUrl, formState, [], item.backgroundType);
+                } catch (e) {
+                    console.error(`Failed to save item ${index}:`, e);
+                    throw e; // Promise.allでキャッチさせる
+                }
+            });
+
+            await Promise.all(savePromises);
+
+            toast.success(`${batchItems.length}件の商品を保存しました！`);
+            onSuccess?.();
+            router.push("/history");
+            router.refresh();
+
+        } catch (error) {
+            console.error("Batch save error:", error);
+            toast.error("一部の商品の保存に失敗しました");
+        } finally {
+            setIsSaving(false);
+        }
+    }, [router]);
+
     return {
         /** 保存中かどうか */
         isSaving,
         /** 商品を保存する関数 */
         saveItem,
+        /** 一括出品の商品を保存する関数 */
+        saveBatchItems,
     };
 }

@@ -15,15 +15,18 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Reorder } from "framer-motion";
 import { ItemCard } from "@/components/item-card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Trash2, CheckSquare, Square, X, GripVertical } from "lucide-react";
+import { Loader2, Trash2, CheckSquare, Square, X, GripVertical, Download } from "lucide-react";
 import { useItemList } from "@/hooks/use-item-list";
 import { useItemSelection } from "@/hooks/use-item-selection";
-import { useBatchAnalysis } from "@/hooks/use-batch-analysis";
+import { useBatchJob } from "@/contexts/BatchJobContext";
+// import { useBatchAnalysis } from "@/hooks/use-batch-analysis";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useBulkDownload } from "@/hooks/use-bulk-download";
 
 export default function HistoryPage() {
     const router = useRouter();
@@ -52,8 +55,18 @@ export default function HistoryPage() {
         isAllSelected,
     } = useItemSelection({ items, isEditMode });
 
-    // 一括生成処理
-    const { isProcessing: isBatchProcessing, progress, currentStep, processBatch } = useBatchAnalysis();
+    // 一括生成処理 (Contextから取得)
+    const { isProcessing, progress, total } = useBatchJob();
+
+    // 一括ダウンロード
+    const { isDownloading, downloadItems } = useBulkDownload();
+
+    // 進捗が進むたびにリストを更新
+    useEffect(() => {
+        if (progress > 0) {
+            fetchItems();
+        }
+    }, [progress, fetchItems]);
 
     // 初回読み込み
     useEffect(() => {
@@ -107,6 +120,19 @@ export default function HistoryPage() {
         setIsEditMode(false);
     };
 
+    // 一括ダウンロードハンドラ
+    const handleBulkDownload = async () => {
+        // selectedIds (Set<string>) を Array に変換してフィルタリング
+        const selectedIdsArray = Array.from(selectedIds);
+        const targetItems = items.filter(item => selectedIdsArray.includes(item.id));
+
+        await downloadItems(targetItems);
+
+        // ダウンロード後は選択モードを維持するか解除するか？
+        // ユーザーガイドライン的には維持の方が親切かもしれないが、完了した感出すなら解除もあり。
+        // ここでは維持する。
+    };
+
     // 一括生成ハンドラ
     const handleBatchGenerate = async () => {
         if (selectedIds.size === 0 || selectedIds.size > 3) return;
@@ -125,7 +151,6 @@ export default function HistoryPage() {
     };
 
     // アイテム選択ハンドラ（クリック、Shift+クリック）
-    // アイテム選択ハンドラ（クリック、Shift+クリック）
     const handleItemClick = (index: number, e: React.MouseEvent) => {
         if (!isEditMode) {
             router.push(`/items/${items[index].id}`);
@@ -140,6 +165,9 @@ export default function HistoryPage() {
         handleSelectionClick(index, e);
     };
 
+    // 一括生成中の残りアイテム数（スケルトン表示用）
+    const pendingCount = isProcessing ? Math.max(0, total - progress) : 0;
+
     return (
         <main className="min-h-screen bg-gray-50">
             <div className="container max-w-5xl mx-auto px-4 py-8">
@@ -147,9 +175,16 @@ export default function HistoryPage() {
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900">作成一覧</h1>
-                        <p className="text-sm text-blue-600 mt-1">
-                            作成済みの下書き ({items.length})
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                            <p className="text-sm text-blue-600">
+                                作成済みの下書き ({items.length})
+                            </p>
+                            {isProcessing && (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full animate-pulse">
+                                    AI生成中... {progress}/{total}
+                                </span>
+                            )}
+                        </div>
                     </div>
                     {items.length > 0 && (
                         <Button
@@ -174,7 +209,6 @@ export default function HistoryPage() {
                     )}
                 </div>
 
-                {/* Edit Mode Actions */}
                 {isEditMode && items.length > 0 && (
                     <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200 mb-4 animate-in fade-in duration-200">
                         <div className="flex items-center gap-3">
@@ -201,6 +235,20 @@ export default function HistoryPage() {
                             </span>
                         </div>
                         <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleBulkDownload}
+                                disabled={selectedCount === 0 || isDownloading}
+                                className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                            >
+                                {isDownloading ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                ) : (
+                                    <Download className="h-4 w-4 mr-1" />
+                                )}
+                                ダウンロード ({selectedCount})
+                            </Button>
 
                             <Button
                                 variant="destructive"
@@ -220,8 +268,9 @@ export default function HistoryPage() {
                     </div>
                 )}
 
+
                 {/* Content */}
-                {loading ? (
+                {loading && items.length === 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                         {[...Array(10)].map((_, i) => (
                             <div key={i} className="flex flex-col gap-2">
@@ -231,7 +280,7 @@ export default function HistoryPage() {
                             </div>
                         ))}
                     </div>
-                ) : items.length === 0 ? (
+                ) : items.length === 0 && !isProcessing ? (
                     <div className="text-center py-20">
                         <p className="text-gray-500 mb-4">まだ作成がありません</p>
                         <Link href="/">
@@ -240,116 +289,119 @@ export default function HistoryPage() {
                             </Button>
                         </Link>
                     </div>
-                ) : isEditMode ? (
-                    /* 選択モード: ドラッグ&ドロップで並び替え可能（縦リスト表示） */
-                    <Reorder.Group
-                        axis="y"
-                        values={items}
-                        onReorder={reorderItems}
-                        className="flex flex-col gap-2"
-                        as="div"
-                    >
-                        {items.map((item, index) => (
-                            <Reorder.Item
-                                key={item.id}
-                                value={item}
-                                className="relative bg-white rounded-xl border border-gray-200 p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow"
-                                whileDrag={{ scale: 1.02, boxShadow: "0 10px 30px rgba(0,0,0,0.15)", zIndex: 50 }}
-                                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                            >
-                                <div className="flex items-center gap-4">
-                                    {/* ドラッグハンドル */}
-                                    <div className="flex-shrink-0 text-gray-400 hover:text-gray-600">
-                                        <GripVertical className="h-5 w-5" />
-                                    </div>
-                                    {/* 順番表示 */}
-                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
-                                        {index + 1}
-                                    </div>
-                                    {/* サムネイル */}
-                                    <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
-                                        <img
-                                            src={item.image_url}
-                                            alt={item.title}
-                                            className="w-full h-full object-cover pointer-events-none"
-                                            draggable={false}
-                                        />
-                                    </div>
-                                    {/* 商品情報 */}
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className="text-sm font-medium text-gray-900 truncate">
-                                            {item.title}
-                                        </h3>
-                                        <p className="text-sm text-gray-500">
-                                            ¥{item.price.toLocaleString()}
-                                        </p>
-                                    </div>
-                                    {/* チェックボックス */}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleItemClick(index, e);
-                                        }}
-                                        className="flex-shrink-0 h-8 w-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
-                                    >
-                                        {selectedIds.has(item.id) ? (
-                                            <CheckSquare className="h-5 w-5 text-blue-600" />
-                                        ) : (
-                                            <Square className="h-5 w-5 text-gray-400" />
-                                        )}
-                                    </button>
-                                </div>
-                            </Reorder.Item>
-                        ))}
-                    </Reorder.Group>
                 ) : (
-                    /* 通常モード: テキスト選択可能、クリックで詳細へ */
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {items.map((item, index) => (
-                            <div
-                                key={item.id}
-                                className="relative"
-                                onClick={(e) => handleItemClick(index, e)}
-                            >
-                                <ItemCard
-                                    imageUrl={item.image_url}
-                                    title={item.title}
-                                    price={item.price}
-                                    status={item.status || "目立った傷や汚れなし"}
-                                    createdAt={item.created_at}
-                                    isEditMode={false}
-                                    className="transition-transform"
-                                />
+                    <div className={isEditMode ? "" : "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"}>
+
+                        {/* 生成中スケルトン (通常モード時のみグリッド表示、編集モード時は非表示推奨だがとりあえず出す) */}
+                        {!isEditMode && pendingCount > 0 && [...Array(pendingCount)].map((_, i) => (
+                            <div key={`skeleton-${i}`} className="flex flex-col gap-2 animate-pulse">
+                                <div className="aspect-[3/4] w-full bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl relative overflow-hidden border-2 border-indigo-100 border-dashed">
+                                    <div className="absolute inset-0 flex items-center justify-center flex-col text-indigo-300">
+                                        <Loader2 className="h-8 w-8 animate-spin mb-2" />
+                                        <span className="text-xs font-bold">Generating...</span>
+                                    </div>
+                                </div>
+                                <Skeleton className="h-4 w-2/3" />
+                                <Skeleton className="h-4 w-1/2" />
                             </div>
                         ))}
+
+                        {isEditMode ? (
+                            /* 選択モード */
+                            <Reorder.Group
+                                axis="y"
+                                values={items}
+                                onReorder={reorderItems}
+                                className="flex flex-col gap-2"
+                                as="div"
+                            >
+                                {items.map((item, index) => (
+                                    <Reorder.Item
+                                        key={item.id}
+                                        value={item}
+                                        className="relative bg-white rounded-xl border border-gray-200 p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow group"
+                                        whileDrag={{ scale: 1.02, boxShadow: "0 10px 30px rgba(0,0,0,0.15)", zIndex: 50 }}
+                                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                    >
+                                        <div
+                                            className="flex items-center gap-4 cursor-pointer"
+                                            onClick={(e) => {
+                                                if (isEditMode) {
+                                                    handleItemClick(index, e);
+                                                }
+                                            }}
+                                        >
+                                            <div className="flex-shrink-0 text-gray-400 hover:text-gray-600">
+                                                <GripVertical className="h-5 w-5" />
+                                            </div>
+                                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
+                                                {index + 1}
+                                            </div>
+                                            <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-100 relative">
+                                                <Image
+                                                    src={item.image_url}
+                                                    alt={item.title}
+                                                    fill
+                                                    className="object-cover pointer-events-none"
+                                                    sizes="64px"
+                                                    draggable={false}
+                                                />
+                                                {/* ホバー時の白オーバーレイ */}
+                                                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-25 transition-opacity duration-200 pointer-events-none" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="text-sm font-medium text-gray-900 truncate">
+                                                    {item.title}
+                                                </h3>
+                                                <p className="text-sm text-gray-500">
+                                                    ¥{item.price.toLocaleString()}
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={(e) => {
+                                                    // 親のonClickが発火しないようにstopPropagationするが、
+                                                    // 親も同じハンドラを呼ぶので、ここでのクリックはボタンの拡大エリアとしての役割だけでよい。
+                                                    // しかし、二重発火を防ぐためにstopPropagationは必要。
+                                                    e.stopPropagation();
+                                                    handleItemClick(index, e);
+                                                }}
+                                                className="flex-shrink-0 h-12 w-12 -mr-2 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
+                                            >
+                                                {selectedIds.has(item.id) ? (
+                                                    <CheckSquare className="h-6 w-6 text-blue-600" />
+                                                ) : (
+                                                    <Square className="h-6 w-6 text-gray-400" />
+                                                )}
+                                            </button>
+                                        </div>
+                                    </Reorder.Item>
+                                ))}
+                            </Reorder.Group>
+                        ) : (
+                            /* 通常モード */
+                            items.map((item, index) => (
+                                <div
+                                    key={item.id}
+                                    className="relative"
+                                    onClick={(e) => handleItemClick(index, e)}
+                                >
+                                    <ItemCard
+                                        imageUrl={item.image_url}
+                                        title={item.title}
+                                        price={item.price}
+                                        status={item.status || "目立った傷や汚れなし"}
+                                        createdAt={item.created_at}
+                                        isEditMode={false}
+                                        className="transition-transform"
+                                    />
+                                </div>
+                            ))
+                        )}
                     </div>
                 )}
             </div>
-            {/* バッチ処理中のオーバーレイ */}
-            {isBatchProcessing && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-xl">
-                        <div className="flex flex-col items-center text-center">
-                            <Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-4" />
-                            <h3 className="text-lg font-bold text-gray-900 mb-2">
-                                AI一括生成中...
-                            </h3>
-                            <p className="text-sm text-gray-600 mb-4">
-                                {currentStep}
-                            </p>
-                            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                                <div
-                                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-                                    style={{ width: `${progress}%` }}
-                                ></div>
-                            </div>
-                            <p className="text-xs text-gray-500">
-                                ブラウザを閉じないでください
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
         </main>
     );
 }
+
+// Helper for shimmers (inline for simplicity, but cleaner extracted)

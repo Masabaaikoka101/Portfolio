@@ -1,33 +1,5 @@
-/**
- * 画像編集API
- *
- * このAPIの役割:
- * - 商品画像をメルカリ出品用に最適化
- * - 背景の合成（白スタジオまたはカスタム背景）
- *
- * Why 画像編集をAIで行うのか:
- * - 従来の画像処理では複雑な背景合成が困難
- * - AIなら参照画像を見て自然に合成できる
- * - ユーザーの手間を大幅削減
- *
- * エンドポイント:
- * - POST /api/edit-image
- * - Content-Type: multipart/form-data
- * - Body: image (File), backgroundType (string)
- *
- * 背景タイプ:
- * - white: 白スタジオ（AI生成）
- * - canvas: キャンバス生地
- * - dark-wood: ダークウッド
- * - light-wood: ライトウッド
- * - marble: 大理石
- *
- * Learning:
- * - Gemini Image Generation: https://ai.google.dev/gemini-api/docs/image-generation
- */
-
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -47,9 +19,9 @@ const BACKGROUND_FILES: Record<Exclude<BackgroundType, "white">, string> = {
 };
 
 /**
- * Gemini クライアント
+ * Gemini クライアント (New SDK)
  */
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 /**
  * 共通の絶対厳守ルール（商品保護）
@@ -81,9 +53,63 @@ ${PRODUCT_PROTECTION_RULES}
 `;
 
 /**
- * カスタム背景用プロンプト
+ * 背景タイプごとのカスタムプロンプト（ラベル対応）
  */
-const CUSTOM_BACKGROUND_PROMPT = `
+const BACKGROUND_PROMPTS: Record<string, string> = {
+    "white": WHITE_STUDIO_PROMPT,
+    "canvas": `
+    この画像の背景を「キャンバス（布地）」の背景テクスチャに置き換えてください。
+
+    ${PRODUCT_PROTECTION_RULES}
+
+    【背景処理】
+    - 提供されたキャンバス画像のテクスチャと色味を使用
+    - 商品を画像の中央に配置し、まっすぐに調整
+    - 布地の質感に馴染むような、自然で柔らかな影を追加
+    - 商品画像のみを出力
+    `,
+    "dark-wood": `
+    この画像の背景を「ダークウッド（暗い木目）」の背景テクスチャに置き換えてください。
+
+    ${PRODUCT_PROTECTION_RULES}
+
+    【背景処理】
+    - 提供されたダークウッド画像のテクスチャと色味を使用
+    - 商品を画像の中央に配置し、まっすぐに調整
+    - 木目の質感に馴染むような、深みのある自然な影を追加
+    - 高級感のある落ち着いた雰囲気に仕上げる
+    - 商品画像のみを出力
+    `,
+    "light-wood": `
+    この画像の背景を「ライトウッド（明るい木目）」の背景テクスチャに置き換えてください。
+
+    ${PRODUCT_PROTECTION_RULES}
+
+    【背景処理】
+    - 提供されたライトウッド画像のテクスチャと色味を使用
+    - 商品を画像の中央に配置し、まっすぐに調整
+    - 木目の質感に馴染むような、明るく自然な影を追加
+    - 清潔感のあるナチュラルな雰囲気に仕上げる
+    - 商品画像のみを出力
+    `,
+    "marble": `
+    この画像の背景を「大理石（マーブル）」の背景テクスチャに置き換えてください。
+
+    ${PRODUCT_PROTECTION_RULES}
+
+    【背景処理】
+    - 提供された大理石画像のテクスチャと色味を使用
+    - 商品を画像の中央に配置し、まっすぐに調整
+    - 石の質感に馴染むような、シャープで自然な影を追加
+    - 高級感と清涼感のある雰囲気に仕上げる
+    - 商品画像のみを出力
+    `
+};
+
+/**
+ * デフォルトのカスタム背景プロンプト（未定義の場合）
+ */
+const DEFAULT_CUSTOM_PROMPT = `
 この商品画像の背景を、提供された背景テクスチャに置き換えてください。
 
 ${PRODUCT_PROTECTION_RULES}
@@ -98,10 +124,12 @@ ${PRODUCT_PROTECTION_RULES}
 商品画像のみを出力してください。
 `;
 
-/**
- * 画像編集APIハンドラー
- */
+function normalizePathForLog(p: string) {
+    return path.relative(process.cwd(), p);
+}
+
 export async function POST(req: NextRequest) {
+    console.log("[API] /api/edit-image called");
     try {
         const formData = await req.formData();
         const file = formData.get("image") as File;
@@ -114,17 +142,16 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // 商品画像をBase64に変換
         const buffer = await file.arrayBuffer();
         const base64Image = Buffer.from(buffer).toString("base64");
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
-
-        let result;
+        // 型定義に合わないとエラーになる可能性があるためanyで受けるか、SDKの型を確認すべきだが
+        // ここではビルドエラー回避のため一旦anyを使わず推論に任せる
+        let response;
 
         if (backgroundType === "white") {
-            // 白スタジオ背景
-            result = await model.generateContent({
+            response = await genAI.models.generateContent({
+                model: "gemini-2.5-flash-image",
                 contents: [
                     {
                         role: "user",
@@ -139,13 +166,17 @@ export async function POST(req: NextRequest) {
                         ],
                     },
                 ],
-                generationConfig: {
-                    // @ts-expect-error - responseModalities is valid for image generation
-                    responseModalities: ["image", "text"],
+                config: {
+                    responseModalities: ["image"],
+                    safetySettings: [
+                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+                    ],
                 },
             });
         } else {
-            // カスタム背景
             const backgroundPath = path.join(
                 process.cwd(),
                 "public",
@@ -153,16 +184,21 @@ export async function POST(req: NextRequest) {
                 BACKGROUND_FILES[backgroundType]
             );
 
-            // 背景画像を読み込み
+            if (!fs.existsSync(backgroundPath)) {
+                throw new Error(`Background file not found: ${normalizePathForLog(backgroundPath)}`);
+            }
             const backgroundBuffer = fs.readFileSync(backgroundPath);
             const base64Background = backgroundBuffer.toString("base64");
 
-            result = await model.generateContent({
+            const promptText = BACKGROUND_PROMPTS[backgroundType] || DEFAULT_CUSTOM_PROMPT;
+
+            response = await genAI.models.generateContent({
+                model: "gemini-2.5-flash-image",
                 contents: [
                     {
                         role: "user",
                         parts: [
-                            { text: CUSTOM_BACKGROUND_PROMPT },
+                            { text: promptText },
                             { text: "【商品画像】" },
                             {
                                 inlineData: {
@@ -180,17 +216,28 @@ export async function POST(req: NextRequest) {
                         ],
                     },
                 ],
-                generationConfig: {
-                    // @ts-expect-error - responseModalities is valid for image generation
-                    responseModalities: ["image", "text"],
+                config: {
+                    responseModalities: ["image"],
+                    safetySettings: [
+                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+                    ],
                 },
             });
         }
 
-        const response = await result.response;
+        const candidate = response.candidates?.[0];
+        console.log("[API] Gemini Response Candidate:", JSON.stringify({
+            finishReason: candidate?.finishReason,
+            safetyRatings: candidate?.safetyRatings,
+            contentPartsCount: candidate?.content?.parts?.length,
+            fullResponse: process.env.NODE_ENV === 'development' ? JSON.stringify(response) : undefined
+        }, null, 2));
 
-        // レスポンスから画像パートを探す
-        for (const part of response.candidates?.[0]?.content?.parts || []) {
+        const parts = candidate?.content?.parts || [];
+        for (const part of parts) {
             if (part.inlineData) {
                 const imageData = part.inlineData.data;
                 const mimeType = part.inlineData.mimeType || "image/png";
@@ -203,13 +250,18 @@ export async function POST(req: NextRequest) {
         }
 
         return NextResponse.json(
-            { error: "No image generated", success: false },
+            { error: "No image generated in response", success: false },
             { status: 500 }
         );
+
     } catch (error) {
-        console.error("Gemini Image API Error:", error);
+        console.error("Gemini Image API Error (New SDK):", JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
         return NextResponse.json(
-            { error: "Failed to process image", success: false },
+            {
+                error: "Failed to process image",
+                details: error instanceof Error ? error.message : String(error),
+                success: false
+            },
             { status: 500 }
         );
     }

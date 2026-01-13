@@ -35,3 +35,14 @@ export {
     AnalyzeResponseSchema,
     EditImageResponseSchema,
 } from "@/lib/schemas/item";
+
+/**
+ * 一括出品時の各商品設定
+ */
+export interface BatchItem {
+    status: ItemStatus;
+    backgroundType: string;
+    title: string;
+    description: string;
+    price: number;
+}

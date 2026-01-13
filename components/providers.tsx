@@ -14,16 +14,26 @@
 "use client";
 
 import { ReactNode } from "react";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/contexts/auth-context";
+import { BatchJobProvider } from "@/contexts/BatchJobContext";
 import { FileSelectProvider } from "@/contexts/file-select-context";
+import { NavigationGuardProvider } from "@/contexts/navigation-guard-context";
 
-interface ProvidersProps {
-    children: ReactNode;
-}
-
-export function Providers({ children }: ProvidersProps) {
+export function Providers({ children }: { children: React.ReactNode }) {
     return (
-        <FileSelectProvider>
-            {children}
-        </FileSelectProvider>
+        <AuthProvider>
+            <BatchJobProvider>
+                <FileSelectProvider>
+                    <NavigationGuardProvider>
+                        <TooltipProvider>
+                            {children}
+                            <Toaster />
+                        </TooltipProvider>
+                    </NavigationGuardProvider>
+                </FileSelectProvider>
+            </BatchJobProvider>
+        </AuthProvider>
     );
 }

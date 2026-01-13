@@ -35,14 +35,17 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useItemForm } from "@/hooks/use-item-form";
 import { useAuth } from "@/hooks/use-auth";
+import { useNavigationGuard } from "@/contexts/navigation-guard-context";
 import { EmptyState } from "@/components/features/home/EmptyState";
 import { PreviewStep } from "@/components/features/home/PreviewStep";
 import {
   ImageOrderingStep,
   ConditionSelectionStep,
   BackgroundSelectionStep,
+  BatchSettingsStep,
 } from "@/components/features/home/WizardSteps";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 /**
  * 認証チェック中のローディング画面
@@ -149,7 +152,44 @@ function HomeContent() {
     save: saveItem,
     reset,
     reorderImages,
+    mode,
+    setMode,
+    batchItems,
+    updateBatchItem,
+    updateAllBatchItems,
+    addImages,
+    removeImage,
+    analyzingStates,
   } = useItemForm();
+
+  // =========================================================================
+  // Navigation Guard (未保存時の離脱防止)
+  // =========================================================================
+  const { setNavigationGuard } = useNavigationGuard();
+
+  // ガード条件: プレビュー画面かつ保存中でない場合
+  // batchモードの扱いは要検討だが、一旦プレビュー時はガードする
+  const shouldBlock = currentStep === "preview" && !isSaving;
+
+  useEffect(() => {
+    setNavigationGuard(shouldBlock);
+    return () => setNavigationGuard(false);
+  }, [shouldBlock, setNavigationGuard]);
+
+  // ブラウザの閉じる/更新/戻るボタン対策
+  useEffect(() => {
+    if (!shouldBlock) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = ""; // Chrome requires checking returnValue
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [shouldBlock]);
 
   // =========================================================================
   // リセットパラメータの監視
@@ -196,7 +236,7 @@ function HomeContent() {
             exit={{ opacity: 0, x: 20 }}
             transition={{ duration: 0.2 }}
           >
-            <EmptyState onFilesSelect={handleFilesSelect} />
+            <EmptyState onFilesSelect={handleFilesSelect} onModeChange={setMode} />
           </motion.div>
         )}
 
@@ -214,6 +254,34 @@ function HomeContent() {
               reorderImages={reorderImages}
               onNext={goToNextStep}
               onBack={reset}
+              mode={mode}
+            />
+          </motion.div>
+        )}
+
+        {/* 2.5. 一括設定画面 (Batchモードのみ) */}
+        {currentStep === "batch_settings" && (
+          <motion.div
+            key="batch_settings"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <BatchSettingsStep
+              batchItems={batchItems}
+              originalImages={originalImages}
+              updateBatchItem={updateBatchItem}
+              updateAllBatchItems={updateAllBatchItems}
+              onNext={async () => {
+                const started = await startAnalysis();
+                if (started) {
+                  toast.success("一括出品を作成しました");
+                  router.push("/history");
+                }
+              }}
+              onBack={goToPrevStep}
+              isAnalyzing={isAnalyzing}
             />
           </motion.div>
         )}
@@ -283,6 +351,12 @@ function HomeContent() {
               onEditImage={() => {
                 console.log("Edit image clicked");
               }}
+              mode={mode}
+              batchItems={batchItems}
+              updateBatchItem={updateBatchItem}
+              onReorder={reorderImages}
+              onDeleteImage={removeImage}
+              analyzingStates={analyzingStates}
             />
           </motion.div>
         )}

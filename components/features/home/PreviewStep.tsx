@@ -25,16 +25,8 @@
 "use client";
 
 import { MercariPreview } from "@/components/mercari-preview";
-import type { ItemStatus } from "@/types";
+import type { ItemStatus, BatchItem } from "@/types";
 
-/**
- * Props型
- *
- * Why 多くのpropsを受け取るのか:
- * - フォーム状態は親（useItemForm）で管理
- * - このコンポーネントは表示・イベント転送に専念
- * - 状態管理とUIの関心を分離
- */
 interface PreviewStepProps {
     /** 処理済み画像リスト */
     processedImages: (string | null)[];
@@ -71,6 +63,20 @@ interface PreviewStepProps {
     onReset: () => void;
     /** 画像編集ボタンクリックコールバック */
     onEditImage: () => void;
+    /** 出品モード */
+    mode?: "single" | "batch";
+    /** バッチアイテムリスト */
+    batchItems?: BatchItem[];
+    /** バッチアイテム更新コールバック */
+    updateBatchItem?: (index: number, updates: Partial<BatchItem>) => void;
+    /** 並び替えコールバック */
+    onReorder?: (newOrderIndices: number[]) => void;
+    /** 画像追加コールバック */
+    onAddImage?: (files: File[]) => void;
+    /** 画像削除コールバック */
+    onDeleteImage?: (index: number) => void;
+    /** アイテムごとの分析状態 */
+    analyzingStates?: boolean[];
 }
 
 /**
@@ -94,16 +100,71 @@ export function PreviewStep({
     onSave,
     onReset,
     onEditImage,
+    mode = "single",
+    batchItems = [],
+    updateBatchItem,
+    onReorder,
+    onAddImage,
+    onDeleteImage,
+    analyzingStates,
 }: PreviewStepProps) {
     // 各画像の処理状態 (nullなら処理中)
     const loadingStates = processedImages.map(img => img === null);
+
+    // バッチモードの場合は現在のインデックスのアイテムデータを使用
+    const isBatch = mode === "batch";
+    const currentBatchItem = isBatch ? batchItems[currentPreviewIndex] : null;
+
+    // 表示する値の解決
+    const displayTitle = isBatch ? (currentBatchItem?.title || "") : title;
+    const displayDescription = isBatch ? (currentBatchItem?.description || "") : description;
+    const displayPrice = isBatch ? (currentBatchItem?.price || 0) : price;
+    const displayStatus = isBatch ? (currentBatchItem?.status || "") : status;
+
+    // 更新ハンドラー
+    const handleTitleChange = (val: string) => {
+        if (isBatch && updateBatchItem) {
+            updateBatchItem(currentPreviewIndex, { title: val });
+        } else {
+            setTitle(val);
+        }
+    };
+
+    const handleDescriptionChange = (val: string) => {
+        if (isBatch && updateBatchItem) {
+            updateBatchItem(currentPreviewIndex, { description: val });
+        } else {
+            setDescription(val);
+        }
+    };
+
+    const handlePriceChange = (val: number) => {
+        if (isBatch && updateBatchItem) {
+            updateBatchItem(currentPreviewIndex, { price: val });
+        } else {
+            setPrice(val);
+        }
+    };
+
+    const handleStatusChange = (val: ItemStatus | "") => {
+        if (isBatch && updateBatchItem) {
+            // ItemStatus | "" だが、BatchItem.status は ItemStatus なのでキャストが必要か、
+            // もしくは updateBatchItem が Partial<BatchItem> なので型チェックが厳密。
+            // ItemStatus として扱う。
+            if (val !== "") {
+                updateBatchItem(currentPreviewIndex, { status: val as ItemStatus });
+            }
+        } else {
+            setStatus(val);
+        }
+    };
 
     return (
         <div className="space-y-6 animate-in fade-in duration-700">
             {/* メインプレビュー */}
             <div>
                 <h2 className="text-lg font-semibold mb-4 text-gray-700">
-                    出品プレビュー
+                    {isBatch ? `出品プレビュー (${currentPreviewIndex + 1}/${processedImages.length})` : "出品プレビュー"}
                     <span className="text-sm font-normal text-blue-600 ml-2">
                         (編集可能)
                     </span>
@@ -112,21 +173,25 @@ export function PreviewStep({
                     images={processedImages}
                     originalImages={originalImages}
                     loadingStates={loadingStates}
-                    isAnalyzing={isAnalyzing}
+                    isAnalyzing={mode === "batch" ? (analyzingStates?.[currentPreviewIndex] ?? false) : isAnalyzing}
                     selectedIndex={currentPreviewIndex}
                     onImageSelect={setCurrentPreviewIndex}
-                    title={title}
-                    description={description}
-                    price={price}
-                    status={status as ItemStatus}
+                    title={displayTitle}
+                    description={displayDescription}
+                    price={displayPrice}
+                    status={displayStatus as ItemStatus}
                     onSave={onSave}
                     isSaving={isSaving}
                     editable={true}
-                    onTitleChange={setTitle}
-                    onDescriptionChange={setDescription}
-                    onPriceChange={setPrice}
-                    onStatusChange={(value) => setStatus(value)}
+                    onTitleChange={handleTitleChange}
+                    onDescriptionChange={handleDescriptionChange}
+                    onPriceChange={handlePriceChange}
+                    onStatusChange={(value) => handleStatusChange(value)}
                     onEditImage={onEditImage}
+                    mode={mode}
+                    onReorder={onReorder}
+                    onAddImage={onAddImage}
+                    onDeleteImage={onDeleteImage}
                 />
             </div>
 
