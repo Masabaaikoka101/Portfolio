@@ -52,13 +52,11 @@ const ITEM_STATUS_OPTIONS: { value: ItemStatus; label: string }[] = [
 ];
 
 const BACKGROUND_OPTIONS = [
-    { value: "white", label: "白スタジオ" },
-    { value: "remove", label: "背景削除 (透過)" },
-    { value: "canvas", label: "キャンバス" },
-    { value: "dark-wood", label: "ダークウッド" },
-    { value: "light-wood", label: "ライトウッド" },
-    { value: "marble", label: "大理石" },
-    { value: "keep", label: "そのまま (変更なし)" },
+    { value: "white", label: "白スタジオ", image: null },
+    { value: "canvas", label: "キャンバス", image: "/backgrounds/canvas.jpeg" },
+    { value: "dark-wood", label: "ダークウッド", image: "/backgrounds/dark-wood.jpeg" },
+    { value: "light-wood", label: "ライトウッド", image: "/backgrounds/light-wood.jpeg" },
+    { value: "marble", label: "大理石", image: "/backgrounds/marble.jpeg" },
 ];
 
 export function BatchSettingsStep({
@@ -194,9 +192,18 @@ export function BatchSettingsStep({
                                         {BACKGROUND_OPTIONS.map((opt) => (
                                             <SelectItem key={opt.value} value={opt.value} className="cursor-pointer">
                                                 <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 rounded overflow-hidden border border-gray-200 shrink-0">
+                                                        {opt.image ? (
+                                                            <img src={opt.image} alt={opt.label} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full bg-gray-50 flex items-center justify-center">
+                                                                <div className="w-3 h-3 bg-white border border-gray-100 shadow-sm" />
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                     <span>{opt.label}</span>
                                                     {opt.value === "white" && (
-                                                        <span className="text-[10px] font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 px-2 py-0.5 rounded-full shadow-sm">
+                                                        <span className="text-[10px] font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 px-2 py-0.5 rounded-full shadow-sm ml-auto">
                                                             推奨
                                                         </span>
                                                     )}
@@ -254,9 +261,18 @@ export function BatchSettingsStep({
                                                 {BACKGROUND_OPTIONS.map((opt) => (
                                                     <SelectItem key={opt.value} value={opt.value} className="cursor-pointer">
                                                         <div className="flex items-center gap-2">
+                                                            <div className="w-6 h-6 rounded overflow-hidden border border-gray-200 shrink-0">
+                                                                {opt.image ? (
+                                                                    <img src={opt.image} alt={opt.label} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <div className="w-full h-full bg-gray-50 flex items-center justify-center">
+                                                                        <div className="w-3 h-3 bg-white border border-gray-100 shadow-sm" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                             <span>{opt.label}</span>
                                                             {opt.value === "white" && (
-                                                                <span className="text-[10px] font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 px-2 py-0.5 rounded-full shadow-sm">
+                                                                <span className="text-[10px] font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 px-2 py-0.5 rounded-full shadow-sm ml-auto">
                                                                     推奨
                                                                 </span>
                                                             )}
