@@ -161,6 +161,7 @@ export function useImageUpload() {
     return {
         // 状態
         originalImages,
+        setOriginalImages,
         processedImages,
         setProcessedImages, // 外部から更新用（AI処理完了時など）
         selectedFiles,

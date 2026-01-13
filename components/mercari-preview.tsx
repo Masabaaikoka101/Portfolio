@@ -160,7 +160,7 @@ export function MercariPreview({
             {/* Desktop: 画像優先レイアウト (約6.5:3.5), Mobile: 縦積み */}
             <div className="grid grid-cols-1 lg:grid-cols-[55%_45%] gap-4 lg:gap-4 items-start">
                 {/* 画像エリア - 独立したカード化 */}
-                <div className="relative bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col gap-6 min-h-[400px] lg:min-h-[600px] p-4 lg:p-6 overflow-hidden sticky top-24 self-start">
+                <div className="relative bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col gap-6 min-h-[400px] lg:min-h-[600px] p-4 lg:p-6 overflow-hidden lg:sticky lg:top-24 self-start">
                     <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium text-gray-600">
                             {mode === "batch" ? "出品アイテム (選択中)" : "商品画像"}
@@ -258,7 +258,7 @@ export function MercariPreview({
                                 {/* 画像追加ボタン (最大5枚まで) */}
                                 {onAddImage && (
                                     images.length < 5 ? (
-                                        <div className="flex flex-col gap-1 w-full">
+                                        <div className="flex flex-col gap-1 w-1/4 md:w-full">
                                             <div className="w-full aspect-square border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 hover:border-gray-400 transition-colors"
                                                 onClick={() => fileInputRef.current?.click()}
                                             >

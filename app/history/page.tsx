@@ -20,7 +20,7 @@ import { useRouter } from "next/navigation";
 import { Reorder } from "framer-motion";
 import { ItemCard } from "@/components/item-card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Trash2, CheckSquare, Square, X, GripVertical, Download } from "lucide-react";
+import { Loader2, Trash2, CheckSquare, Square, X, GripVertical, Download, Camera } from "lucide-react";
 import { useItemList } from "@/hooks/use-item-list";
 import { useItemSelection } from "@/hooks/use-item-selection";
 import { useBatchJob } from "@/contexts/BatchJobContext";
@@ -272,7 +272,7 @@ export default function HistoryPage() {
 
                 {/* Content */}
                 {loading && items.length === 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                         {[...Array(10)].map((_, i) => (
                             <div key={i} className="flex flex-col gap-2">
                                 <Skeleton className="aspect-[3/4] w-full rounded-xl" />
@@ -291,15 +291,21 @@ export default function HistoryPage() {
                         </Link>
                     </div>
                 ) : (
-                    <div className={isEditMode ? "" : "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"}>
+                    <div className={isEditMode ? "" : "grid grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-4"}>
 
-                        {/* 生成中スケルトン (通常モード時のみグリッド表示、編集モード時は非表示推奨だがとりあえず出す) */}
+                        {/* 生成中スケルトン (通常モード時のみグリッド表示) */}
                         {!isEditMode && pendingCount > 0 && [...Array(pendingCount)].map((_, i) => (
-                            <div key={`skeleton-${i}`} className="flex flex-col gap-2 animate-pulse">
-                                <div className="aspect-[3/4] w-full bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl relative overflow-hidden border-2 border-indigo-100 border-dashed">
-                                    <div className="absolute inset-0 flex items-center justify-center flex-col text-indigo-300">
-                                        <Loader2 className="h-8 w-8 animate-spin mb-2" />
-                                        <span className="text-xs font-bold">Generating...</span>
+                            <div key={`skeleton-${i}`} className="flex flex-col gap-2">
+                                {/* MercariPreviewスタイルに統一した生成中アニメーション */}
+                                <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
+                                    {/* プレースホルダー */}
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                        <Camera className="h-12 w-12" />
+                                    </div>
+
+                                    {/* 薄い白オーバーレイ + パルスアニメーション */}
+                                    <div className="absolute inset-0 bg-white/60 animate-pulse z-20 flex items-center justify-center">
+                                        <span className="text-sm text-white font-medium drop-shadow-lg">生成中...</span>
                                     </div>
                                 </div>
                                 <Skeleton className="h-4 w-2/3" />

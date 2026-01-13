@@ -278,7 +278,7 @@ export default function LoginPage() {
                     </h2>
                     <p className="mt-2 text-sm text-gray-600">
                         {isLogin
-                            ? "AXELを使って出品作業を効率化しましょう"
+                            ? "Pigroを使って出品作業を効率化しましょう"
                             : "すべての機能を使うには登録が必要です"}
                     </p>
                 </div>
@@ -343,11 +343,7 @@ export default function LoginPage() {
                 </div>
 
                 {/* トップページへ戻る */}
-                <div className="mt-4 text-center">
-                    <Link href="/" className="text-xs text-gray-500 hover:underline">
-                        トップページに戻る
-                    </Link>
-                </div>
+
             </div>
         </div>
     );

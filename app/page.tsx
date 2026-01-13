@@ -64,12 +64,17 @@ function AuthLoading() {
 /**
  * ステップインジケーターコンポーネント
  */
-function StepIndicator({ currentStep }: { currentStep: string }) {
-  const steps = [
-    { id: "reorder", label: "画像" },
-    { id: "condition", label: "状態" },
-    { id: "background", label: "背景" },
-  ];
+function StepIndicator({ currentStep, mode }: { currentStep: string; mode: "single" | "batch" }) {
+  const steps = mode === "batch"
+    ? [
+      { id: "reorder", label: "画像" },
+      { id: "batch_settings", label: "設定" }, // 一括設定
+    ]
+    : [
+      { id: "reorder", label: "画像" },
+      { id: "condition", label: "状態" },
+      { id: "background", label: "背景" },
+    ];
 
   const currentIndex = steps.findIndex((s) => s.id === currentStep);
 
@@ -116,17 +121,12 @@ function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // =========================================================================
-  // 認証チェック（ログイン必須）
-  // =========================================================================
+  // ... (useAuth omitted for brevity, logic remains)
   const { isLoading: isAuthLoading, isAuthenticated } = useAuth({
     required: true,
     redirectTo: "/login",
   });
 
-  // =========================================================================
-  // フォーム状態
-  // =========================================================================
   const {
     originalImages,
     processedImages,
@@ -160,70 +160,47 @@ function HomeContent() {
     addImages,
     removeImage,
     analyzingStates,
+    selectMode,
+    isModeSelected,
   } = useItemForm();
 
-  // =========================================================================
-  // Navigation Guard (未保存時の離脱防止)
-  // =========================================================================
+  // ... (navigation guard and useEffects omitted)
   const { setNavigationGuard } = useNavigationGuard();
-
-  // ガード条件: プレビュー画面かつ保存中でない場合
-  // batchモードの扱いは要検討だが、一旦プレビュー時はガードする
   const shouldBlock = currentStep === "preview" && !isSaving;
-
   useEffect(() => {
     setNavigationGuard(shouldBlock);
     return () => setNavigationGuard(false);
   }, [shouldBlock, setNavigationGuard]);
-
-  // ブラウザの閉じる/更新/戻るボタン対策
   useEffect(() => {
     if (!shouldBlock) return;
-
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = ""; // Chrome requires checking returnValue
+      e.returnValue = "";
     };
-
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [shouldBlock]);
-
-  // =========================================================================
-  // リセットパラメータの監視
-  // =========================================================================
   useEffect(() => {
     const shouldReset = searchParams.get("reset") === "true";
     if (shouldReset) {
       reset();
-      // パラメータを削除してURLをクリーンにする
       router.replace("/", { scroll: false });
     }
   }, [searchParams, reset, router]);
 
-  // =========================================================================
-  // 認証チェック中
-  // =========================================================================
   if (isAuthLoading) {
     return <AuthLoading />;
   }
-
-  // =========================================================================
-  // 未認証（リダイレクト中）
-  // =========================================================================
   if (!isAuthenticated) {
     return <AuthLoading />;
   }
 
-  // =========================================================================
-  // メインレンダリング
-  // =========================================================================
   return (
     <div className="container max-w-7xl mx-auto px-4 py-8">
       {/* ステップインジケーター */}
-      <StepIndicator currentStep={currentStep} />
+      <StepIndicator currentStep={currentStep} mode={mode} />
 
       {/* アニメーション付きステップ切り替え */}
       <AnimatePresence mode="wait">
@@ -236,7 +213,13 @@ function HomeContent() {
             exit={{ opacity: 0, x: 20 }}
             transition={{ duration: 0.2 }}
           >
-            <EmptyState onFilesSelect={handleFilesSelect} onModeChange={setMode} />
+            <EmptyState
+              onFilesSelect={handleFilesSelect}
+              onModeChange={selectMode}
+              currentMode={mode}
+              isModeSelected={isModeSelected}
+              onBack={() => reset({ keepMode: false })}
+            />
           </motion.div>
         )}
 
@@ -253,7 +236,7 @@ function HomeContent() {
               originalImages={originalImages}
               reorderImages={reorderImages}
               onNext={goToNextStep}
-              onBack={reset}
+              onBack={() => reset({ keepMode: true })}
               mode={mode}
             />
           </motion.div>
@@ -274,11 +257,15 @@ function HomeContent() {
               updateBatchItem={updateBatchItem}
               updateAllBatchItems={updateAllBatchItems}
               onNext={async () => {
-                const started = await startAnalysis();
-                if (started) {
-                  toast.success("一括出品を作成しました");
-                  router.push("/history");
-                }
+                // 即座に遷移を実行することを優先
+                const startPromise = startAnalysis();
+                // 遷移を先に行う（楽観的UI）
+                router.push("/history");
+                toast.success("一括出品の生成を開始しました");
+
+                // 実際には startAnalysis は非同期でバックグラウンド処理を開始するだけなので
+                // awaitしても早いはずだが、念のため並列化または待機・遷移順序を調整
+                await startPromise;
               }}
               onBack={goToPrevStep}
               isAnalyzing={isAnalyzing}
@@ -318,6 +305,7 @@ function HomeContent() {
               setBackgroundType={setBackgroundType}
               onStartAnalysis={startAnalysis}
               onBack={goToPrevStep}
+              onReset={() => reset({ keepMode: true })}
             />
           </motion.div>
         )}
@@ -349,7 +337,7 @@ function HomeContent() {
               onSave={saveItem}
               onReset={reset}
               onEditImage={() => {
-                console.log("Edit image clicked");
+                reset({ keepMode: true });
               }}
               mode={mode}
               batchItems={batchItems}
