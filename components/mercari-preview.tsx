@@ -1,5 +1,5 @@
-import { Camera, Copy, Check, Download, Edit2, Sparkles } from "lucide-react";
-import React from "react";
+import { Camera, Copy, Check, Download, Edit2, Sparkles, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import React, { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { ItemStatus } from "@/types";
 import { STATUS_OPTIONS } from "@/lib/constants";
 import Image from "next/image";
+import { Reorder } from "framer-motion";
+
 
 /**
  * Props型
@@ -33,6 +35,15 @@ interface MercariPreviewProps {
     selectedIndex?: number;
     /** 画像選択コールバック */
     onImageSelect?: (index: number) => void;
+    /** 表示モード (デフォルト: "single") */
+    /** 表示モード (デフォルト: "single") */
+    mode?: "single" | "batch";
+    /** 並び替えコールバック */
+    onReorder?: (newOrderIndices: number[]) => void;
+    /** 画像追加コールバック */
+    onAddImage?: (files: File[]) => void;
+    /** 画像削除コールバック */
+    onDeleteImage?: (index: number) => void;
 
     // --- 共通 Props ---
     title: string;
@@ -62,6 +73,7 @@ export function MercariPreview({
     isAnalyzing = false,
     selectedIndex = 0,
     onImageSelect,
+    mode = "single",
     title,
     description,
     price,
@@ -75,12 +87,22 @@ export function MercariPreview({
     onPriceChange,
     onStatusChange,
     onEditImage,
+    onReorder,
+    onAddImage,
+    onDeleteImage,
 }: MercariPreviewProps) {
+
     const { copiedField, handleCopy, handleDownload } = useMercariPreview();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // 互換性対応: 配列がない場合は単体propを使用
-    const images = propImages ?? (image ? [image] : []);
-    const originalImages = propOriginalImages ?? (originalImage ? [originalImage] : []);
+    const images = React.useMemo(() =>
+        propImages ?? (image ? [image] : []),
+        [propImages, image]);
+
+    const originalImages = React.useMemo(() =>
+        propOriginalImages ?? (originalImage ? [originalImage] : []),
+        [propOriginalImages, originalImage]);
 
     // 表示用データの解決
     const currentProcessed = images[selectedIndex] ?? null; // nullなら処理中または未生成
@@ -90,49 +112,66 @@ export function MercariPreview({
     const displayImage = currentProcessed ?? currentOriginal;
 
     // ローディング状態: 指定があればそれ、なければ analyze中なら全体的に... (画像個別のloadingStatesがあればそちら優先)
-    const isImageLoading = loadingStates?.[selectedIndex] ?? false;
+    const isImageLoading = loadingStates?.[selectedIndex] ?? (isAnalyzing || false);
 
-    // スロット表示が必要か（複数画像がある場合）
-    const showThumbnails = (originalImages.length > 1);
+    // スロット表示が必要か（複数画像がある場合 かつ 単体モード）
+    // バッチモードの場合は、個別の商品として扱うためサムネイルリストは非表示にする
+    // 修正: 画像追加機能がある場合は、1枚でも追加ボタンを表示するためにリストを表示する
+    const showThumbnails = mode === "single" && (originalImages.length > 1 || !!onAddImage);
 
     // テキストローディング（スケルトン）表示用
     const TextSkeleton = ({ className }: { className?: string }) => (
-        <div className={cn("animate-pulse bg-gray-200 rounded", className)} />
+        <div className={cn("animate-pulse bg-gray-300 rounded", className)} />
     );
+
+    // キーボードナビゲーション
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // 入力中などでなければ矢印キーで移動
+            if (["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement).tagName)) return;
+
+            if (e.key === "ArrowLeft") {
+                onImageSelect?.((selectedIndex - 1 + images.length) % images.length);
+            } else if (e.key === "ArrowRight") {
+                onImageSelect?.((selectedIndex + 1) % images.length);
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [selectedIndex, images.length, onImageSelect]);
+
+    // DnD用のローカルステート（インデックスの配列）
+    const [orderedIndices, setOrderedIndices] = React.useState<number[]>([]);
+
+    // propsのoriginalImagesが変更されたら、インデックスをリセット
+    useEffect(() => {
+        // console.log("MercariPreview: originalImages changed, resetting orderedIndices", originalImages);
+        setOrderedIndices(originalImages.map((_, i) => i));
+    }, [originalImages]);
 
     return (
         <div
             className={cn(
-                "w-full bg-white rounded-xl border border-gray-200 shadow-sm",
+                "w-full bg-transparent", // 外枠削除、背景透明
                 className
             )}
         >
-            {/* Desktop: 画像優先レイアウト (約5.5:4.5), Mobile: 縦積み */}
-            <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-0 lg:gap-8 items-start">
-                {/* 左側: 画像エリア (PCではSticky) */}
-                <div className="bg-gray-50/50 p-6 lg:p-10 flex flex-col gap-6 md:sticky md:top-6 md:h-fit rounded-xl border border-gray-100 shadow-sm m-4 lg:m-0 lg:border-0 lg:shadow-none lg:bg-transparent">
+            {/* Desktop: 画像優先レイアウト (約6.5:3.5), Mobile: 縦積み */}
+            <div className="grid grid-cols-1 lg:grid-cols-[55%_45%] gap-4 lg:gap-4 items-start">
+                {/* 画像エリア - 独立したカード化 */}
+                <div className="relative bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col gap-6 min-h-[400px] lg:min-h-[600px] p-4 lg:p-6 overflow-hidden sticky top-24 self-start">
                     <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium text-gray-600">
-                            商品画像
+                            {mode === "batch" ? "出品アイテム (選択中)" : "商品画像"}
                         </Label>
                         <div className="flex gap-2">
-                            {editable && displayImage && onEditImage && !isImageLoading && (
+                            {displayImage && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={onEditImage}
                                     className="h-7 px-2 text-gray-500 hover:text-blue-600"
-                                >
-                                    <Edit2 className="h-4 w-4 mr-1" />
-                                    <span className="text-xs">編集</span>
-                                </Button>
-                            )}
-                            {editable && displayImage && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
                                     onClick={() => handleDownload(displayImage, title)}
-                                    className="h-7 px-2 text-gray-500 hover:text-blue-600"
                                 >
                                     <Download className="h-4 w-4 mr-1" />
                                     <span className="text-xs">DL</span>
@@ -142,51 +181,118 @@ export function MercariPreview({
                     </div>
 
                     {/* 画像とサムネイルのラッパー */}
-                    <div className="flex flex-col md:flex-row gap-3">
+                    <div className="flex flex-col md:flex-row gap-3 flex-1">
                         {/* サムネイルリスト (Mobile:上 / Desktop:左) */}
-                        {showThumbnails && (
-                            <div className="order-1 grid grid-cols-4 md:grid-cols-1 gap-1 w-full md:w-20 md:shrink-0 content-start">
-                                {originalImages.map((orig, i) => {
-                                    const processed = images[i];
-                                    const isThisLoading = loadingStates?.[i] ?? false;
-                                    const thumbSrc = processed ?? orig;
-                                    const isActive = i === selectedIndex;
+                        {/* Batchモードでも表示するように条件を変更 */}
+                        {(showThumbnails || mode === "batch") && (
+                            <div className="order-1 flex flex-col gap-2 w-full md:w-20 md:shrink-0">
+                                <Reorder.Group
+                                    axis="y"
+                                    values={orderedIndices}
+                                    onReorder={setOrderedIndices}
+                                    className="grid grid-cols-4 md:grid-cols-1 gap-2"
+                                >
+                                    {orderedIndices.map((originalIndex) => {
+                                        // console.log("Rendering slot:", { originalIndex, selectedIndex, isActive: originalIndex === selectedIndex });
+                                        const orig = originalImages[originalIndex];
+                                        const processed = images[originalIndex];
+                                        const isThisLoading = loadingStates?.[originalIndex] ?? false;
+                                        const thumbSrc = processed ?? orig;
+                                        const isActive = originalIndex === selectedIndex;
 
-                                    return (
-                                        <button
-                                            key={i}
-                                            onClick={() => onImageSelect?.(i)}
-                                            className={cn(
-                                                "relative aspect-square rounded-md overflow-hidden border-2 transition-all w-full",
-                                                isActive ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-200 hover:border-gray-300"
-                                            )}
-                                        >
-                                            <Image
-                                                src={thumbSrc}
-                                                alt={`Slot ${i}`}
-                                                fill
-                                                className="object-cover"
-                                                unoptimized
-                                            />
-                                            {isThisLoading && (
-                                                <div className="absolute inset-0 bg-white/60 animate-pulse flex items-center justify-center">
-                                                    <span className="text-xs text-white font-medium drop-shadow-md">生成中</span>
+                                        // keyには一意なURLを使用し、リレンダリング時にコンポーネントが破棄されないようにする
+                                        // (インデックスをkeyにすると、並び替えでコンポーネントの中身が入れ替わる扱いになり、アニメーションが壊れる)
+                                        const itemKey = thumbSrc || `index-${originalIndex}`;
+
+                                        return (
+                                            <Reorder.Item
+                                                key={itemKey}
+                                                value={originalIndex}
+                                                // ドラッグ可能かどうかは onReorder があるかどうかで判定 (Read-Only時は無効)
+                                                drag={!!onReorder}
+                                                onDragEnd={() => onReorder?.(orderedIndices)}
+                                                className="relative w-full aspect-square"
+                                            >
+                                                <div
+                                                    onClick={() => onImageSelect?.(originalIndex)}
+                                                    className={cn(
+                                                        "relative w-full h-full rounded-md overflow-hidden border-2 transition-all cursor-pointer group",
+                                                        isActive ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-200 hover:border-gray-300"
+                                                    )}
+                                                >
+                                                    {thumbSrc && (
+                                                        <Image
+                                                            src={thumbSrc}
+                                                            alt={`Slot ${originalIndex}`}
+                                                            fill
+                                                            className="object-cover pointer-events-none" // pointer-events-none for drag handle
+                                                            unoptimized
+                                                        />
+                                                    )}
+                                                    {isThisLoading && (
+                                                        <div className="absolute inset-0 bg-white/60 animate-pulse flex items-center justify-center">
+                                                            <span className="text-xs text-white font-medium drop-shadow-md">生成中</span>
+                                                        </div>
+                                                    )}
+
+                                                    {/* 削除ボタン */}
+                                                    {onDeleteImage && images.length > 1 && (
+                                                        <button
+                                                            className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                // オリジナルインデックスを削除
+                                                                onDeleteImage(originalIndex);
+                                                            }}
+                                                            title="画像を削除"
+                                                        >
+                                                            <X className="w-3 h-3" />
+                                                        </button>
+                                                    )}
                                                 </div>
-                                            )}
-                                        </button>
-                                    );
-                                })}
+                                            </Reorder.Item>
+                                        );
+                                    })}
+                                </Reorder.Group>
+
+                                {/* 画像追加ボタン (最大5枚まで) */}
+                                {onAddImage && (
+                                    images.length < 5 ? (
+                                        <div className="flex flex-col gap-1 w-full">
+                                            <div className="w-full aspect-square border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                                                onClick={() => fileInputRef.current?.click()}
+                                            >
+                                                <Plus className="h-6 w-6 text-gray-400 mb-1" />
+                                                <span className="text-[10px] text-gray-400 font-medium">追加</span>
+                                                <input
+                                                    type="file"
+                                                    ref={fileInputRef}
+                                                    className="hidden"
+                                                    multiple
+                                                    accept="image/*"
+                                                    onChange={(e) => {
+                                                        if (e.target.files && e.target.files.length > 0) {
+                                                            onAddImage(Array.from(e.target.files));
+                                                            e.target.value = "";
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                            <span className="text-[10px] text-gray-400 text-center">合計5枚まで</span>
+                                        </div>
+                                    ) : null
+                                )}
                             </div>
                         )}
 
                         {/* メイン画像表示エリア */}
-                        <div className="order-2 flex-1 relative w-full aspect-square rounded-lg overflow-hidden bg-gray-100 group border border-gray-200 shadow-inner">
+                        <div className="order-2 flex-1 relative w-full aspect-square rounded-lg overflow-hidden bg-gray-50 group border border-gray-100">
                             {displayImage && currentOriginal && currentProcessed ? (
                                 // 処理済み＆オリジナルあり -> 比較スライダー
                                 <ComparisonSlider
                                     imageBefore={currentOriginal}
                                     imageAfter={currentProcessed}
-                                    className="w-full h-full"
+                                    className="w-full h-full border-0 rounded-none shadow-none"
                                 />
                             ) : displayImage ? (
                                 // 単一画像表示（オリジナルのみ、または処理済みのみ）
@@ -220,42 +326,92 @@ export function MercariPreview({
                                     <span className="text-sm text-white font-medium drop-shadow-lg">生成中...</span>
                                 </div>
                             )}
+
+                            {/* ナビゲーション矢印 (複数画像がある場合) */}
+                            {images.length > 1 && (
+                                <>
+                                    {/* 左矢印: 最初の画像でない場合のみ表示 */}
+                                    {selectedIndex > 0 && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-700 shadow-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-30 disabled:opacity-0 w-8 h-8"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onImageSelect?.(selectedIndex - 1);
+                                            }}
+                                            disabled={isImageLoading}
+                                        >
+                                            <ChevronLeft className="h-5 w-5" />
+                                        </Button>
+                                    )}
+
+                                    {/* 右矢印: 最後の画像でない場合のみ表示 */}
+                                    {selectedIndex < images.length - 1 && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-700 shadow-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-30 disabled:opacity-0 w-8 h-8"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onImageSelect?.(selectedIndex + 1);
+                                            }}
+                                            disabled={isImageLoading}
+                                        >
+                                            <ChevronRight className="h-5 w-5" />
+                                        </Button>
+                                    )}
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                {/* 右側: コンテンツエリア */}
-                <div className="p-4 lg:p-6 flex flex-col h-full">
+                {/* 右側: コンテンツエリア - 独立したカード化 */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 lg:p-6 flex flex-col h-fit">
                     {/* タイトルセクション */}
                     <div className="mb-4">
                         <Label className="text-sm font-medium text-gray-600 mb-2 block">
                             商品名
                         </Label>
-                        <div className="flex items-center gap-2">
+                        <div className="relative">
                             {isAnalyzing ? (
                                 <TextSkeleton className="h-10 flex-1" />
                             ) : editable ? (
-                                <Input
-                                    value={title}
-                                    onChange={(e) => onTitleChange?.(e.target.value)}
-                                    className="text-lg font-bold border-gray-300 focus:border-blue-500 flex-1"
-                                    placeholder="商品名を入力"
-                                    maxLength={40}
-                                />
+                                <>
+                                    <Input
+                                        value={title}
+                                        onChange={(e) => onTitleChange?.(e.target.value)}
+                                        className="text-lg font-bold border-gray-300 focus:border-blue-500 pr-10"
+                                        placeholder="商品名を入力"
+                                        maxLength={40}
+                                    />
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-transparent"
+                                        onClick={() => handleCopy(title, "title")}
+                                        title="商品名をコピー"
+                                    >
+                                        {copiedField === "title" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                    </Button>
+                                </>
                             ) : (
-                                <h2 className="text-lg lg:text-xl font-bold text-gray-900 leading-tight flex-1">
-                                    {title || "商品名がここに入ります"}
-                                </h2>
+                                <div className="flex items-center justify-between gap-2">
+                                    <h2 className="text-lg lg:text-xl font-bold text-gray-900 leading-tight">
+                                        {title || "商品名がここに入ります"}
+                                    </h2>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="shrink-0 h-8 w-8 text-gray-400 hover:text-blue-600"
+                                        onClick={() => handleCopy(title, "title")}
+                                        title="商品名をコピー"
+                                    >
+                                        {copiedField === "title" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                    </Button>
+                                </div>
                             )}
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="shrink-0 h-8 w-8 text-gray-400 hover:text-blue-600"
-                                onClick={() => handleCopy(title, "title")}
-                                title="商品名をコピー"
-                            >
-                                {copiedField === "title" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                            </Button>
                         </div>
                     </div>
 
@@ -295,31 +451,46 @@ export function MercariPreview({
                             販売価格
                         </Label>
                         <div className="flex items-center gap-2">
-                            <span className="text-lg font-bold text-red-600">¥</span>
-                            {isAnalyzing ? (
-                                <TextSkeleton className="h-10 w-40" />
-                            ) : editable ? (
-                                <Input
-                                    type="number"
-                                    value={price}
-                                    onChange={(e) => onPriceChange?.(parseInt(e.target.value) || 0)}
-                                    className="text-2xl font-bold text-red-600 w-40 border-gray-300 focus:border-blue-500"
-                                    min={0}
-                                />
-                            ) : (
-                                <span className="text-2xl lg:text-3xl font-bold text-red-600">
-                                    {price.toLocaleString()}
-                                </span>
-                            )}
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="shrink-0 h-8 w-8 text-gray-400 hover:text-blue-600"
-                                onClick={() => handleCopy(price.toString(), "price")}
-                                title="価格をコピー"
-                            >
-                                {copiedField === "price" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                            </Button>
+                            <span className="text-lg font-bold text-gray-900">¥</span>
+                            <div className="relative">
+                                {isAnalyzing ? (
+                                    <TextSkeleton className="h-10 w-40" />
+                                ) : editable ? (
+                                    <>
+                                        <Input
+                                            type="number"
+                                            value={price}
+                                            onChange={(e) => onPriceChange?.(parseInt(e.target.value) || 0)}
+                                            className="text-2xl font-bold text-gray-900 w-40 border-gray-300 focus:border-blue-500 pr-10"
+                                            min={0}
+                                        />
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-transparent"
+                                            onClick={() => handleCopy(price.toString(), "price")}
+                                            title="価格をコピー"
+                                        >
+                                            {copiedField === "price" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-2xl lg:text-3xl font-bold text-gray-900">
+                                            {price.toLocaleString()}
+                                        </span>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="shrink-0 h-8 w-8 text-gray-400 hover:text-blue-600"
+                                            onClick={() => handleCopy(price.toString(), "price")}
+                                            title="価格をコピー"
+                                        >
+                                            {copiedField === "price" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -329,39 +500,50 @@ export function MercariPreview({
                             <Label className="text-sm font-medium text-gray-600">
                                 商品説明
                             </Label>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-gray-400 hover:text-blue-600 flex items-center gap-1"
-                                onClick={() => handleCopy(description, "description")}
-                                title="商品説明をコピー"
-                            >
-                                {copiedField === "description" ? (
-                                    <><Check className="h-3.5 w-3.5 text-green-500" /><span className="text-xs">コピー済み</span></>
-                                ) : (
-                                    <><Copy className="h-3.5 w-3.5" /><span className="text-xs">コピー</span></>
-                                )}
-                            </Button>
                         </div>
-                        {isAnalyzing ? (
-                            <div className="space-y-2">
-                                <TextSkeleton className="h-4 w-full" />
-                                <TextSkeleton className="h-4 w-5/6" />
-                                <TextSkeleton className="h-4 w-4/6" />
-                                <TextSkeleton className="h-20 w-full mt-4" />
-                            </div>
-                        ) : editable ? (
-                            <Textarea
-                                value={description}
-                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onDescriptionChange?.(e.target.value)}
-                                className="w-full min-h-[400px] text-sm border-gray-300 focus:border-blue-500 resize-y"
-                                placeholder="商品説明を入力"
-                            />
-                        ) : (
-                            <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed p-2 bg-gray-50 rounded border border-gray-100 min-h-[200px]">
-                                {description || "ここにAI生成された商品説明文が表示されます。"}
-                            </div>
-                        )}
+                        <div className="relative">
+                            {isAnalyzing ? (
+                                <div className="space-y-2">
+                                    <TextSkeleton className="h-4 w-full" />
+                                    <TextSkeleton className="h-4 w-5/6" />
+                                    <TextSkeleton className="h-4 w-4/6" />
+                                    <TextSkeleton className="h-20 w-full mt-4" />
+                                </div>
+                            ) : editable ? (
+                                <>
+                                    <Textarea
+                                        value={description}
+                                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onDescriptionChange?.(e.target.value)}
+                                        className="w-full min-h-[400px] text-sm border-gray-300 focus:border-blue-500 resize-y p-3 pr-10 leading-relaxed"
+                                        placeholder="商品説明を入力"
+                                    />
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="absolute right-2 top-2 h-8 w-8 text-gray-400 hover:text-blue-600 bg-white/50 hover:bg-white border shadow-sm rounded-md"
+                                        onClick={() => handleCopy(description, "description")}
+                                        title="商品説明をコピー"
+                                    >
+                                        {copiedField === "description" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                    </Button>
+                                </>
+                            ) : (
+                                <div className="relative group">
+                                    <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed p-4 bg-gray-50 rounded border border-gray-100 min-h-[200px]">
+                                        {description || "ここにAI生成された商品説明文が表示されます。"}
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="absolute right-2 top-2 h-8 w-8 text-gray-400 hover:text-blue-600 bg-white/80 border shadow-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                                        onClick={() => handleCopy(description, "description")}
+                                        title="商品説明をコピー"
+                                    >
+                                        {copiedField === "description" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* 保存ボタン */}
