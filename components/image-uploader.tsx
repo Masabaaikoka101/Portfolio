@@ -29,6 +29,7 @@ import { Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 /**
  * Props型
@@ -38,12 +39,14 @@ interface ImageUploaderProps {
     onFilesSelect: (files: File[]) => void;
     /** 追加のCSSクラス */
     className?: string;
+    /** 最大アップロード枚数 (デフォルト: 3) */
+    maxFiles?: number;
 }
 
 /**
  * 画像アップローダーコンポーネント
  */
-export function ImageUploader({ onFilesSelect, className }: ImageUploaderProps) {
+export function ImageUploader({ onFilesSelect, className, maxFiles = 3 }: ImageUploaderProps) {
     /** プレビュー画像リスト */
     const [previews, setPreviews] = useState<string[]>([]);
     /** ドラッグ中フラグ */
@@ -55,7 +58,18 @@ export function ImageUploader({ onFilesSelect, className }: ImageUploaderProps) 
      * ファイル処理
      */
     const handleFiles = (files: File[]) => {
-        const validFiles = files.filter(f => f.type.startsWith("image/")).slice(0, 3);
+        // 画像のみフィルタリング
+        const imageFiles = files.filter(f => f.type.startsWith("image/"));
+
+        // 枚数制限チェック
+        if (imageFiles.length > maxFiles) {
+            toast.error(`${maxFiles}枚までしかアップロードできません`);
+            // 制限枚数まで切り詰める場合は以下を有効化、今回はエラー通知のみで処理を中断するか、切り詰めて続行するか。
+            // ユーザー要望は「5枚までしかアップロードできませんという表記をつけて」なので、エラーを出して処理しない、あるいは切り詰める。
+            // ここではエラーを表示し、最大枚数まで切り詰めて処理する親切設計にする。
+        }
+
+        const validFiles = imageFiles.slice(0, maxFiles);
         if (validFiles.length === 0) return;
 
         // プレビュー生成（UI用）
@@ -142,7 +156,9 @@ export function ImageUploader({ onFilesSelect, className }: ImageUploaderProps) 
                             <div key={index} className={cn(
                                 "relative aspect-square w-full rounded-md overflow-hidden bg-gray-100",
                                 previews.length === 1 && "col-span-2 row-span-2 aspect-auto h-64 md:h-80",
-                                previews.length === 3 && index === 0 && "col-span-2"
+                                previews.length === 3 && index === 0 && "col-span-2",
+                                // 4枚以上の場合はシンプルにグリッド表示
+                                previews.length >= 4 && "col-span-1 row-span-1"
                             )}>
                                 <Image
                                     src={src}
@@ -176,7 +192,7 @@ export function ImageUploader({ onFilesSelect, className }: ImageUploaderProps) 
                         ここにドラッグ＆ドロップ、またはクリックして選択
                     </p>
                     <p className="mt-2 text-xs text-gray-400">
-                        最大3枚まで (PNG, JPG, WEBP)
+                        最大{maxFiles}枚まで (PNG, JPG, WEBP)
                     </p>
                 </div>
             )}

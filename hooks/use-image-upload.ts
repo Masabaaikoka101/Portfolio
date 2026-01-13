@@ -42,12 +42,12 @@ export function useImageUpload() {
      * - ブラウザ/OSによっては選択順と逆順でファイルが返される場合がある
      * - そのため配列を反転して、最初に選択したファイルがメイン画像となるよう調整
      */
-    const handleFilesSelect = useCallback((files: File[]) => {
+    const handleFilesSelect = useCallback((files: File[], maxFiles: number = 50) => {
         if (files.length === 0) return;
 
-        // 最大3枚まで、かつ反転して選択順序を維持
+        // 指定枚数まで、かつ反転して選択順序を維持
         // Note: 一部ブラウザでは選択順と逆にファイルが返されるため反転
-        const targetFiles = files.slice(0, 3).reverse();
+        const targetFiles = files.slice(0, maxFiles).reverse();
 
         // ファイル読み込み（並列実行だが、Promise.allは順序を維持）
         const promises = targetFiles.map((file, index) => {
@@ -120,6 +120,44 @@ export function useImageUpload() {
         setSelectedFiles((prev) => newIndices.map(i => prev[i]));
     }, []);
 
+    /**
+     * 画像を追加（既存のリストの後ろに追加）
+     */
+    const appendImages = useCallback((files: File[]) => {
+        if (files.length === 0) return;
+
+        // 追加分の読み込み
+        const promises = files.map((file, index) => {
+            return new Promise<{ index: number; image: string }>((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    resolve({ index, image: e.target?.result as string });
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+
+        Promise.all(promises).then((results) => {
+            // インデックス順（選択順）にソート
+            const sortedResults = results.sort((a, b) => a.index - b.index);
+            const newImages = sortedResults.map((r) => r.image);
+
+            setOriginalImages((prev) => [...prev, ...newImages]);
+            setProcessedImages((prev) => [...prev, ...new Array(newImages.length).fill(null)]);
+            setSelectedFiles((prev) => [...prev, ...files]);
+        });
+    }, []);
+
+    /**
+     * 画像を削除
+     * @param index 削除する画像のインデックス
+     */
+    const removeImage = useCallback((index: number) => {
+        setOriginalImages((prev) => prev.filter((_, i) => i !== index));
+        setProcessedImages((prev) => prev.filter((_, i) => i !== index));
+        setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    }, []);
+
     return {
         // 状態
         originalImages,
@@ -128,9 +166,11 @@ export function useImageUpload() {
         selectedFiles,
 
         // アクション
-        handleFilesSelect,
+        handleFilesSelect, // 置き換え
+        appendImages,      // 追加
         resetImage,
         moveImage,
         reorderImages,
+        removeImage,
     };
 }
