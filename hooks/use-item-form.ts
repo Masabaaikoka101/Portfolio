@@ -77,6 +77,7 @@ export function useItemForm(options?: UseItemFormOptions) {
     // =========================================================================
     const {
         originalImages,
+        setOriginalImages,
         processedImages,
         setProcessedImages,
         selectedFiles,
@@ -101,7 +102,7 @@ export function useItemForm(options?: UseItemFormOptions) {
      * バッチアイテムの初期値
      */
     const defaultBatchItem: BatchItem = {
-        status: "目立った傷や汚れなし",
+        status: "新品、未使用",
         backgroundType: "white",
         title: "",
         description: "",
@@ -163,7 +164,7 @@ export function useItemForm(options?: UseItemFormOptions) {
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [price, setPrice] = useState(0);
-    const [status, setStatus] = useState<ItemStatus | "">("");
+    const [status, setStatus] = useState<ItemStatus | "">("新品、未使用");
     /** 背景タイプ（デフォルト: 白スタジオ） */
     const [backgroundType, setBackgroundType] = useState("white");
 
@@ -309,7 +310,7 @@ export function useItemForm(options?: UseItemFormOptions) {
         });
     }, [updateBatchItem]);
 
-    const { isAnalyzing, isEditingImage, startAnalysis: performAnalysis, analyzingStates } = useAiAnalysis({
+    const { isAnalyzing, isEditingImage, startAnalysis: performAnalysis, analyzingStates, setAnalyzingStates } = useAiAnalysis({
         selectedFiles,
         status,
         backgroundType,
@@ -423,18 +424,40 @@ export function useItemForm(options?: UseItemFormOptions) {
     // =========================================================================
     // 5. リセット処理
     // =========================================================================
-    const reset = useCallback(() => {
+    const [isModeSelected, setIsModeSelected] = useState(false);
+
+    const selectMode = (newMode: ListingMode) => {
+        setMode(newMode);
+        setIsModeSelected(true);
+    };
+
+    /**
+     * フォームの状態をリセット
+     */
+    const reset = (options?: { keepMode?: boolean }) => {
+        // 画像は維持しない（要件によるが、「画像を変更」なら画像はリセットでOK）
+        setOriginalImages([]);
+        setProcessedImages([]);
         resetImage();
         setCurrentStep("upload");
-        setMode("single");
-        setStatus("");
+
+        if (!options?.keepMode) {
+            setMode("single");
+            setIsModeSelected(false);
+        } else {
+            // モードは維持、選択済み状態も維持
+            setIsModeSelected(true);
+        }
+
+        setStatus("新品、未使用");
         setBackgroundType("white");
         setTitle("");
         setDescription("");
         setPrice(0);
         setCurrentPreviewIndex(0);
         setBatchItems([]);
-    }, [resetImage]);
+        setAnalyzingStates([]);
+    };
 
     // =========================================================================
     // 6. 戻り値（UIコンポーネントで使用）

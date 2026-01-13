@@ -160,6 +160,8 @@ function HomeContent() {
     addImages,
     removeImage,
     analyzingStates,
+    selectMode,
+    isModeSelected,
   } = useItemForm();
 
   // =========================================================================
@@ -236,7 +238,13 @@ function HomeContent() {
             exit={{ opacity: 0, x: 20 }}
             transition={{ duration: 0.2 }}
           >
-            <EmptyState onFilesSelect={handleFilesSelect} onModeChange={setMode} />
+            <EmptyState
+              onFilesSelect={handleFilesSelect}
+              onModeChange={selectMode}
+              currentMode={mode}
+              isModeSelected={isModeSelected}
+              onBack={() => reset({ keepMode: false })}
+            />
           </motion.div>
         )}
 
@@ -318,6 +326,7 @@ function HomeContent() {
               setBackgroundType={setBackgroundType}
               onStartAnalysis={startAnalysis}
               onBack={goToPrevStep}
+              onReset={() => reset({ keepMode: true })}
             />
           </motion.div>
         )}
@@ -349,7 +358,7 @@ function HomeContent() {
               onSave={saveItem}
               onReset={reset}
               onEditImage={() => {
-                console.log("Edit image clicked");
+                reset({ keepMode: true });
               }}
               mode={mode}
               batchItems={batchItems}

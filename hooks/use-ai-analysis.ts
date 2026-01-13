@@ -262,5 +262,6 @@ export function useAiAnalysis({
         startAnalysis,
         /** 各アイテムごとの分析ステータス */
         analyzingStates,
+        setAnalyzingStates,
     };
 }

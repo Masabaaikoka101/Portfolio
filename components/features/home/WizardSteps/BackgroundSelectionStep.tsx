@@ -41,6 +41,8 @@ interface BackgroundSelectionStepProps {
     onStartAnalysis: () => void;
     /** 前のステップへ戻るコールバック */
     onBack: () => void;
+    /** 画像変更（リセット）コールバック */
+    onReset?: () => void;
 }
 
 /**
@@ -51,6 +53,7 @@ export function BackgroundSelectionStep({
     setBackgroundType,
     onStartAnalysis,
     onBack,
+    onReset,
 }: BackgroundSelectionStepProps) {
     return (
         <div className="max-w-xl mx-auto bg-white p-4 rounded-2xl shadow-sm border border-gray-100 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -77,8 +80,9 @@ export function BackgroundSelectionStep({
                                 onClick={() => setBackgroundType(option.id)}
                                 className={cn(
                                     "relative aspect-square rounded-xl overflow-hidden border-3 transition-all",
+                                    "group",
                                     backgroundType === option.id
-                                        ? "border-purple-500 ring-4 ring-purple-200 scale-105"
+                                        ? "border-purple-500 ring-4 ring-purple-200 scale-105 z-10"
                                         : "border-gray-200 hover:border-gray-300 hover:scale-102"
                                 )}
                             >
@@ -101,6 +105,13 @@ export function BackgroundSelectionStep({
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                             </svg>
                                         </div>
+                                    </div>
+                                )}
+                                {option.id === "white" && (
+                                    <div className="absolute top-0 right-0 z-20">
+                                        <span className="text-[10px] font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 px-1.5 py-0.5 rounded-bl-lg shadow-sm block">
+                                            推奨
+                                        </span>
                                     </div>
                                 )}
                             </button>
@@ -129,6 +140,16 @@ export function BackgroundSelectionStep({
                         AIで生成開始
                     </Button>
                 </div>
+
+                {/* 画像変更リンク */}
+                {onReset && (
+                    <button
+                        onClick={onReset}
+                        className="w-full text-sm text-gray-400 hover:text-gray-600 underline mt-1 pb-2"
+                    >
+                        画像を変更する
+                    </button>
+                )}
             </div>
         </div>
     );
