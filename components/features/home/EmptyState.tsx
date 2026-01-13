@@ -69,33 +69,30 @@ export function EmptyState({ onFilesSelect, onModeChange }: EmptyStateProps) {
                     {/* 単品出品モード */}
                     <button
                         onClick={() => handleModeSelect("single")}
-                        className="flex flex-col items-center p-8 bg-white rounded-2xl border-2 border-transparent hover:border-blue-500 shadow-sm hover:shadow-md transition-all group text-left"
+                        className="flex flex-col items-center p-5 md:p-8 bg-white rounded-2xl border-2 border-transparent hover:border-blue-500 shadow-sm hover:shadow-md transition-all group text-left w-full h-full"
                     >
-                        <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shrink-0">
                             <ImageIcon className="w-8 h-8" />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">単品出品</h3>
-                        <p className="text-sm text-gray-500 text-center leading-relaxed">
-                            1つの商品を丁寧に出品します。<br />
-                            詳細なAI分析と編集が可能です。
+                        <h3 className="text-xl font-bold text-gray-900 mb-2 whitespace-nowrap">単品出品</h3>
+                        <p className="text-sm text-gray-500 text-center leading-relaxed w-full [text-wrap:balance] break-words">
+                            一つの商品を出品したいときに適しています
                         </p>
                     </button>
 
                     {/* 一括出品モード */}
-                    {/* 一括出品モード */}
                     <button
                         onClick={() => handleModeSelect("batch")}
-                        className="flex flex-col items-center p-8 bg-white rounded-2xl border-2 border-transparent hover:border-blue-500 shadow-sm hover:shadow-md transition-all group text-left relative overflow-hidden"
+                        className="flex flex-col items-center p-5 md:p-8 bg-white rounded-2xl border-2 border-transparent hover:border-blue-500 shadow-sm hover:shadow-md transition-all group text-left relative overflow-hidden w-full h-full"
                     >
-                        <div className="w-16 h-16 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <div className="w-16 h-16 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shrink-0">
                             <Layers className="w-8 h-8" />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                        <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2 whitespace-nowrap">
                             一括出品
                         </h3>
-                        <p className="text-sm text-gray-500 text-center leading-relaxed">
-                            複数の商品をまとめて出品します。<br />
-                            設定を一括適用して高速に生成できます。
+                        <p className="text-sm text-gray-500 text-center leading-relaxed w-full [text-wrap:balance] break-words">
+                            複数の商品を出品したいときに適しています
                         </p>
                     </button>
                 </div>
@@ -113,20 +110,20 @@ export function EmptyState({ onFilesSelect, onModeChange }: EmptyStateProps) {
                 >
                     <ChevronLeft className="w-6 h-6" />
                 </button>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                <h1 className="text-xl md:text-3xl font-bold text-gray-900 mb-2">
                     {selectedMode === "single" ? "商品画像のアップロード" : "一括出品画像アップロード"}
                 </h1>
-                <p className="text-gray-600">
+                <p className="text-gray-600 text-sm md:text-base">
                     {selectedMode === "single"
                         ? "商品の写真をアップロードしてください"
                         : "出品したい商品のメイン画像をすべてアップロードしてください"}
                 </p>
             </div>
             {/* アップローダーカード */}
-            <div className="max-w-xl mx-auto bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="max-w-xl mx-auto bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100">
                 <ImageUploader
                     onFilesSelect={onFilesSelect}
-                    className="aspect-[4/3]"
+                    className="aspect-square md:aspect-[4/3]"
                     maxFiles={5}
                 />
             </div>

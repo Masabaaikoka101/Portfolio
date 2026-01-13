@@ -181,7 +181,7 @@ export function ImageUploader({ onFilesSelect, className, maxFiles = 3 }: ImageU
                 </div>
             ) : (
                 // アップロード待ち状態
-                <div className="flex flex-col items-center justify-center py-16 text-center cursor-pointer">
+                <div className="flex flex-col items-center justify-center py-10 md:py-16 text-center cursor-pointer">
                     <div className="mb-4 rounded-full bg-gray-100 p-4 transition-colors group-hover:bg-gray-200">
                         <Upload className="h-8 w-8 text-gray-500" />
                     </div>
