@@ -43,6 +43,8 @@ interface ItemCardProps {
     className?: string;
     /** 編集モードフラグ（ドラッグ無効化用） */
     isEditMode?: boolean;
+    /** 処理中フラグ（スケルトン表示用） */
+    isProcessing?: boolean;
     /** クリック時のコールバック */
     onClick?: (e: React.MouseEvent) => void;
 }
@@ -64,6 +66,7 @@ export function ItemCard({
     createdAt,
     className,
     isEditMode = false,
+    isProcessing = false,
     onClick,
 }: ItemCardProps) {
     /**
@@ -98,18 +101,28 @@ export function ItemCard({
                     src={imageUrl}
                     alt={title}
                     fill
+                    loading="lazy"
+                    placeholder="empty"
                     className={`object-cover ${isEditMode ? "select-none pointer-events-none" : ""}`}
                     /**
                      * Why sizesを指定するのか:
                      * - レスポンシブ画像の最適化
                      * - ビューポートに応じた適切なサイズの画像を読み込む
                      */
-                    sizes="(max-width: 768px) 50vw, 25vw"
+                    sizes="(max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
                     draggable={!isEditMode}
                 />
 
                 {/* ホバー時の白オーバーレイ */}
                 <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-25 transition-opacity duration-200 pointer-events-none" />
+
+                {/* 処理中オーバーレイ（スケルトン風） */}
+                {isProcessing && (
+                    <div className="absolute inset-0 bg-white/60 z-30 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
+                        <span className="text-xs text-gray-600 font-medium bg-white/80 px-2 py-1 rounded-full z-10">生成中...</span>
+                    </div>
+                )}
 
                 {/* 価格バッジ */}
                 <div className="absolute bottom-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-sm font-bold z-10">
@@ -119,28 +132,35 @@ export function ItemCard({
 
             {/* コンテンツエリア - ドラッグ不可、テキスト選択可能 */}
             <div className="p-3" draggable={false}>
-                {/* タイトル（2行で切り詰め） */}
-                <h3
-                    className={cn(
-                        "text-sm font-medium text-gray-900 line-clamp-2 leading-tight mb-2",
-                        !isEditMode && "select-text cursor-text"
-                    )}
-                    onClick={(e) => {
-                        // 通常モードではテキスト選択を許可するためイベント伝播を停止
-                        if (!isEditMode) {
-                            e.stopPropagation();
-                        }
-                    }}
-                    draggable={false}
-                >
-                    {title}
-                </h3>
+                {/* タイトル（2行で切り詰め）- 処理中はスケルトン */}
+                {isProcessing ? (
+                    <div className="mb-2 space-y-1.5 hidden md:block">
+                        <div className="h-4 bg-gray-200 rounded animate-pulse w-full" />
+                        <div className="h-4 bg-gray-200 rounded animate-pulse w-2/3" />
+                    </div>
+                ) : (
+                    <h3
+                        className={cn(
+                            "text-sm font-medium text-gray-900 line-clamp-2 leading-tight mb-2 hidden md:block",
+                            !isEditMode && "select-text cursor-text"
+                        )}
+                        onClick={(e) => {
+                            // 通常モードではテキスト選択を許可するためイベント伝播を停止
+                            if (!isEditMode) {
+                                e.stopPropagation();
+                            }
+                        }}
+                        draggable={false}
+                    >
+                        {title}
+                    </h3>
+                )}
                 {/* メタ情報 */}
-                <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full truncate">
+                <div className="flex flex-col items-start gap-1 md:flex-row md:items-center md:justify-between md:gap-2">
+                    <span className="text-[10px] md:text-xs bg-gray-100 text-gray-600 px-1.5 md:px-2 py-0.5 rounded-full">
                         {status}
                     </span>
-                    <span className="text-xs text-gray-400 whitespace-nowrap">
+                    <span className="text-[10px] md:text-xs text-gray-400 whitespace-nowrap">
                         {formattedDate}
                     </span>
                 </div>

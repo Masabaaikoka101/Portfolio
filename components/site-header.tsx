@@ -241,16 +241,15 @@ export function SiteHeader() {
                             </DialogContent>
                         </Dialog>
 
-                        {/* ログイン済み: 新規作成ボタン + ユーザーメニュー */}
+                        {/* 右側: ナビゲーション - ログイン時のみ */}
                         {user && (
-                            <>
-                                {/* 新規作成ボタン（クリックでファイル選択） */}
+                            <div className="flex items-center gap-1.5 md:gap-3">
                                 <Button
                                     onClick={handleNewClick}
-                                    className="bg-blue-600 text-white hover:bg-blue-700 rounded-full px-4 flex items-center gap-1.5 shadow-sm"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-sm hover:shadow active:scale-95 transition-all h-9 px-3 md:h-10 md:px-4 flex items-center justify-center gap-1.5"
                                 >
-                                    <Plus className="h-4 w-4" />
-                                    <span className="hidden sm:inline">新規作成</span>
+                                    <Plus className="h-4 w-4 md:h-5 md:w-5" />
+                                    <span className="text-xs md:text-sm font-bold whitespace-nowrap">新規作成</span>
                                 </Button>
 
                                 {/* ユーザーメニュー */}
@@ -296,7 +295,7 @@ export function SiteHeader() {
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
-                            </>
+                            </div>
                         )}
                     </div>
                 )}

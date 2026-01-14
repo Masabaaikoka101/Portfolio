@@ -26,7 +26,7 @@ interface MercariPreviewProps {
     /** 処理済み画像リスト（表示優先） */
     images?: (string | null)[];
     /** オリジナル画像リスト */
-    originalImages?: string[];
+    originalImages?: (string | null | undefined)[];
     /** 各画像の処理中ステータス */
     loadingStates?: boolean[];
     /** テキスト分析中フラグ */
@@ -59,6 +59,7 @@ interface MercariPreviewProps {
     onPriceChange?: (value: number) => void;
     onStatusChange?: (value: ItemStatus) => void;
     onEditImage?: () => void;
+    onRegenerate?: () => void;
 }
 
 /**
@@ -90,6 +91,7 @@ export function MercariPreview({
     onReorder,
     onAddImage,
     onDeleteImage,
+    onRegenerate,
 }: MercariPreviewProps) {
 
     const { copiedField, handleCopy, handleDownload } = useMercariPreview();
@@ -166,6 +168,20 @@ export function MercariPreview({
                             {mode === "batch" ? "出品アイテム (選択中)" : "商品画像"}
                         </Label>
                         <div className="flex gap-2">
+                            {/* 再生成ボタン */}
+                            {onRegenerate && currentOriginal && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                                    onClick={onRegenerate}
+                                    disabled={isImageLoading}
+                                >
+                                    <Sparkles className="h-4 w-4 mr-1" />
+                                    <span className="text-xs">AI再生成</span>
+                                </Button>
+                            )}
+
                             {displayImage && (
                                 <Button
                                     variant="ghost"
@@ -185,38 +201,33 @@ export function MercariPreview({
                         {/* サムネイルリスト (Mobile:上 / Desktop:左) */}
                         {/* Batchモードでも表示するように条件を変更 */}
                         {(showThumbnails || mode === "batch") && (
-                            <div className="order-1 flex flex-col gap-2 w-full md:w-20 md:shrink-0">
+                            <div className="order-1 w-full md:w-20 md:shrink-0">
                                 <Reorder.Group
                                     axis="y"
                                     values={orderedIndices}
                                     onReorder={setOrderedIndices}
-                                    className="grid grid-cols-4 md:grid-cols-1 gap-2"
+                                    className="flex flex-wrap gap-2 w-full md:flex-col md:flex-nowrap"
                                 >
                                     {orderedIndices.map((originalIndex) => {
-                                        // console.log("Rendering slot:", { originalIndex, selectedIndex, isActive: originalIndex === selectedIndex });
                                         const orig = originalImages[originalIndex];
                                         const processed = images[originalIndex];
                                         const isThisLoading = loadingStates?.[originalIndex] ?? false;
                                         const thumbSrc = processed ?? orig;
                                         const isActive = originalIndex === selectedIndex;
-
-                                        // keyには一意なURLを使用し、リレンダリング時にコンポーネントが破棄されないようにする
-                                        // (インデックスをkeyにすると、並び替えでコンポーネントの中身が入れ替わる扱いになり、アニメーションが壊れる)
                                         const itemKey = thumbSrc || `index-${originalIndex}`;
 
                                         return (
                                             <Reorder.Item
                                                 key={itemKey}
                                                 value={originalIndex}
-                                                // ドラッグ可能かどうかは onReorder があるかどうかで判定 (Read-Only時は無効)
                                                 drag={!!onReorder}
                                                 onDragEnd={() => onReorder?.(orderedIndices)}
-                                                className="relative w-full aspect-square"
+                                                className="relative w-[calc(25%-6px)] md:w-full aspect-square"
                                             >
                                                 <div
                                                     onClick={() => onImageSelect?.(originalIndex)}
                                                     className={cn(
-                                                        "relative w-full h-full rounded-md overflow-hidden border-2 transition-all cursor-pointer group",
+                                                        "relative w-full h-full rounded-md overflow-hidden border-2 transition-all cursor-pointer group bg-gray-50",
                                                         isActive ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-200 hover:border-gray-300"
                                                     )}
                                                 >
@@ -225,9 +236,15 @@ export function MercariPreview({
                                                             src={thumbSrc}
                                                             alt={`Slot ${originalIndex}`}
                                                             fill
-                                                            className="object-cover pointer-events-none" // pointer-events-none for drag handle
+                                                            className="object-cover pointer-events-none"
                                                             unoptimized
                                                         />
+                                                    )}
+                                                    {/* メイン画像ラベル */}
+                                                    {originalIndex === 0 && (
+                                                        <div className="absolute top-0 left-0 bg-black/60 text-white text-[10px] font-medium px-2 py-0.5 rounded-br-md z-10 shadow-sm pointer-events-none backdrop-blur-[2px]">
+                                                            メイン
+                                                        </div>
                                                     )}
                                                     {isThisLoading && (
                                                         <div className="absolute inset-0 bg-white/60 animate-pulse flex items-center justify-center">
@@ -238,10 +255,9 @@ export function MercariPreview({
                                                     {/* 削除ボタン */}
                                                     {onDeleteImage && images.length > 1 && (
                                                         <button
-                                                            className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                                                            className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-black/70 z-20"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                // オリジナルインデックスを削除
                                                                 onDeleteImage(originalIndex);
                                                             }}
                                                             title="画像を削除"
@@ -253,17 +269,15 @@ export function MercariPreview({
                                             </Reorder.Item>
                                         );
                                     })}
-                                </Reorder.Group>
 
-                                {/* 画像追加ボタン (最大5枚まで) */}
-                                {onAddImage && (
-                                    images.length < 5 ? (
-                                        <div className="flex flex-col gap-1 w-1/4 md:w-full">
-                                            <div className="w-full aspect-square border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 hover:border-gray-400 transition-colors"
-                                                onClick={() => fileInputRef.current?.click()}
+                                    {/* 画像追加ボタン (Reorder.Group内に配置してレイアウトに参加させる) */}
+                                    {onAddImage && images.length < 5 && (
+                                        <div className="relative w-[calc(25%-6px)] md:w-full aspect-square">
+                                            <Label
+                                                className="flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 transition-colors"
                                             >
                                                 <Plus className="h-6 w-6 text-gray-400 mb-1" />
-                                                <span className="text-[10px] text-gray-400 font-medium">追加</span>
+                                                <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap">追加</span>
                                                 <input
                                                     type="file"
                                                     ref={fileInputRef}
@@ -277,11 +291,11 @@ export function MercariPreview({
                                                         }
                                                     }}
                                                 />
-                                            </div>
-                                            <span className="text-[10px] text-gray-400 text-center">合計5枚まで</span>
+                                            </Label>
+                                            <span className="sr-only">画像を最大5枚まで追加可能</span>
                                         </div>
-                                    ) : null
-                                )}
+                                    )}
+                                </Reorder.Group>
                             </div>
                         )}
 

@@ -141,6 +141,8 @@ export default function ItemDetailPage() {
                 .update({
                     title, description, price, status,
                     image_url: localImages[0] || item.image_url,
+                    original_image_url: item.original_image_url, // Keep original image URL
+                    original_other_images: item.original_other_images || [], // Keep other original images
                     other_images: localImages.slice(1).filter((img): img is string => !!img),
                 })
                 .eq("id", item.id);
@@ -205,11 +207,18 @@ export default function ItemDetailPage() {
     };
 
     const handleAddImage = async (files: File[]) => {
-        if (!item || files.length === 0) return;
+        console.log("[Debug] handleAddImage called. Files:", files.length);
 
-        // Check for background tag
-        const bgTag = item.tags?.find(t => t.startsWith(SYSTEM_TAG_PREFIX));
+        if (!item || files.length === 0) {
+            console.warn("[Debug] No item or no files. Item:", !!item, "Files:", files.length);
+            return;
+        }
+
+        // Check for background tag (Safety check for array)
+        const tags = Array.isArray(item.tags) ? item.tags : [];
+        const bgTag = tags.find(t => t.startsWith(SYSTEM_TAG_PREFIX));
         const backgroundType = bgTag ? bgTag.replace(SYSTEM_TAG_PREFIX, "") : null;
+        console.log("[Debug] Background Type:", backgroundType);
 
         const startIndex = localImages.length;
         const newUrls = files.map(file => URL.createObjectURL(file));
@@ -226,25 +235,28 @@ export default function ItemDetailPage() {
             return next;
         });
 
-        const uploadImage = async (file: File, index: number) => {
+        const uploadImage = async (file: File, blobUrl: string, initialIndex: number) => {
             try {
+                console.log(`[Debug] uploadImage started for ${file.name}`);
                 let fileToUpload: File | Blob = file;
 
                 // 1. AI Background Processing (if setting exists)
                 if (backgroundType) {
                     try {
+                        console.log(`[Debug] Processing background: ${backgroundType} for ${file.name}`);
                         const result = await AiService.editImage(file, backgroundType);
                         if (result.success && result.imageUrl) {
+                            console.log("[Debug] AI processing success", result.imageUrl);
                             // Convert Data URL to Blob
                             const res = await fetch(result.imageUrl);
                             fileToUpload = await res.blob();
                         } else {
-                            console.warn("Background processing failed, using original.", result.error);
-                            toast.error(`背景処理に失敗しました: ${file.name}`);
+                            console.warn("[Debug] Background processing failed, using original.", result.error);
+                            toast.error(`背景処理に失敗しました: ${file.name} (オリジナルを使用します)`);
                         }
                     } catch (e) {
-                        console.error("AI Service Error:", e);
-                        toast.error(`AI処理中にエラーが発生しました`);
+                        console.error("[Debug] AI Service Error:", e);
+                        toast.error(`AI処理中にエラーが発生しました (オリジナルを使用します)`);
                     }
                 }
 
@@ -255,9 +267,81 @@ export default function ItemDetailPage() {
                 const userId = (item as any).user_id || "guest";
                 const filePath = `${userId}/${fileName}`;
 
+                console.log(`[Debug] Uploading to Supabase: ${filePath}`);
+
                 const { error: uploadError } = await supabase.storage
                     .from("item-images")
                     .upload(filePath, fileToUpload);
+
+                if (uploadError) {
+                    console.error("[Debug] Supabase upload error:", uploadError);
+                    throw uploadError;
+                }
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from("item-images")
+                    .getPublicUrl(filePath);
+
+                console.log(`[Debug] Upload success. Public URL: ${publicUrl}`);
+
+                // 3. Update state with real URL by matching the placeholder blob URL
+                // This prevents index mismatch if user deleted images during upload
+                setLocalImages(prev => prev.map(url => url === blobUrl ? publicUrl : url));
+
+            } catch (error) {
+                console.error("[Debug] Error uploading image:", error);
+                toast.error(`画像のアップロードに失敗しました: ${file.name}`);
+                // Optional: Remove the failed image from localImages?
+                // For now, keep it (it will remain as blob URL or broken) to let user retry or delete.
+            } finally {
+                setProcessingStates(prev => {
+                    const next = { ...prev };
+                    delete next[initialIndex];
+                    return next;
+                });
+            }
+        };
+
+        // Process all files in parallel
+        await Promise.all(files.map((file, i) => uploadImage(file, newUrls[i], startIndex + i)));
+    };
+
+    // ... (Loading/Error states)
+
+    const handleRegenerate = async () => {
+        if (!item?.original_image_url || selectedIndex !== 0) {
+            toast.error("メイン画像の再生成のみ可能です");
+            return;
+        }
+
+        setProcessingStates(prev => ({ ...prev, [selectedIndex]: true }));
+
+        try {
+            const originalUrl = item.original_image_url;
+
+            // 1. Fetch and process image
+            const response = await fetch(originalUrl);
+            if (!response.ok) throw new Error("Failed to fetch original image");
+            const blob = await response.blob();
+            const file = new File([blob], "original.png", { type: blob.type });
+
+            const bgTag = item?.tags?.find(t => t.startsWith(SYSTEM_TAG_PREFIX));
+            const backgroundType = bgTag ? bgTag.replace(SYSTEM_TAG_PREFIX, "") : "white";
+
+            const result = await AiService.editImage(file, backgroundType);
+
+            if (result.success && result.imageUrl) {
+                // 2. Upload processed image to Storage
+                const res = await fetch(result.imageUrl);
+                const processedBlob = await res.blob();
+
+                const fileName = `${Date.now()}_regenerated.png`;
+                const userId = item.user_id || "guest";
+                const filePath = `${userId}/${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from("item-images")
+                    .upload(filePath, processedBlob);
 
                 if (uploadError) throw uploadError;
 
@@ -265,33 +349,27 @@ export default function ItemDetailPage() {
                     .from("item-images")
                     .getPublicUrl(filePath);
 
-                // 3. Update state with real URL and clear loading
+                // 3. Update local state (Overwrite)
                 setLocalImages(prev => {
                     const next = [...prev];
-                    next[index] = publicUrl;
+                    next[selectedIndex] = publicUrl;
                     return next;
                 });
-            } catch (error) {
-                console.error("Error uploading image:", error);
-                toast.error(`画像のアップロードに失敗しました: ${file.name}`);
-                // Remove the failed image from view? Or keep original preview?
-                // Keeping original preview might be misleading if upload failed.
-                // For now, let's leave the preview (which corresponds to local file) but stop loading.
-                // Or maybe nullify it?
-            } finally {
-                setProcessingStates(prev => {
-                    const next = { ...prev };
-                    delete next[index];
-                    return next;
-                });
+                toast.success("再生成しました。保存して確定してください。");
+            } else {
+                throw new Error(result.error || "Generation failed");
             }
-        };
-
-        // Process all files in parallel
-        await Promise.all(files.map((file, i) => uploadImage(file, startIndex + i)));
+        } catch (error) {
+            console.error("Regeneration error:", error);
+            toast.error("再生成に失敗しました");
+        } finally {
+            setProcessingStates(prev => {
+                const next = { ...prev };
+                delete next[selectedIndex];
+                return next;
+            });
+        }
     };
-
-    // ... (Loading/Error states)
 
     if (loading) return <main className="min-h-screen bg-gray-50 flex items-center justify-center"><Loader2 className="h-8 w-8 text-gray-400 animate-spin" /></main>;
     if (error) return <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4"><div className="text-center max-w-md"><h2 className="text-2xl font-bold text-gray-900 mb-4">エラーが発生しました</h2><p className="text-gray-600 mb-8">{error}</p><Button onClick={() => router.push("/history")}>一覧に戻る</Button></div></main>;
@@ -347,8 +425,12 @@ export default function ItemDetailPage() {
                     <div className="w-full">
                         <MercariPreview
                             image={item.image_url}
+                            originalImage={item.original_image_url} // Persist original image
                             images={localImages}
-                            originalImages={localImages.filter((img): img is string => !!img)}
+                            originalImages={[
+                                item.original_image_url,
+                                ...(item.original_other_images || [])
+                            ]}
                             selectedIndex={selectedIndex}
                             onImageSelect={setSelectedIndex}
                             loadingStates={localImages.map((_, i) => !!processingStates[i])}
@@ -366,7 +448,7 @@ export default function ItemDetailPage() {
                             onStatusChange={setStatus}
                             onSave={isEditing ? handleSave : undefined} // Show save button inside preview only in edit mode (optional, header has it too)
                             isSaving={saving}
-                        // onEditImage={isEditing ? ... : undefined} // Future: Allow image editing tool only in edit mode
+                            onRegenerate={isEditing ? handleRegenerate : undefined}
                         />
                     </div>
                 </div>

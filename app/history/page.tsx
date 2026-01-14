@@ -13,7 +13,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -119,6 +119,8 @@ export default function HistoryPage() {
         fetchItems,
         deleteItems,
         reorderItems,
+        hasMore,
+        loadMore,
     } = useItemList();
 
     // 複数選択
@@ -134,6 +136,28 @@ export default function HistoryPage() {
         isAllSelected,
     } = useItemSelection({ items, isEditMode });
 
+    // 無限スクロール用
+    const observerTarget = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !loading) {
+                    loadMore();
+                }
+            },
+            { threshold: 0.1, rootMargin: '100px' }
+        );
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current);
+        }
+
+        return () => {
+            observer.disconnect();
+        };
+    }, [hasMore, loading, loadMore]);
+
     // 一括生成処理 (Contextから取得)
     const { isProcessing, progress, total } = useBatchJob();
     const { processBatch } = useBatchAnalysis();
@@ -141,12 +165,26 @@ export default function HistoryPage() {
     // 一括ダウンロード
     const { isDownloading, downloadItems } = useBulkDownload();
 
+    // 処理中のアイテムがあるかどうか
+    const hasProcessingItems = items.some(item => item.is_processing);
+
     // 進捗が進むたびにリストを更新
     useEffect(() => {
         if (progress > 0) {
             fetchItems();
         }
     }, [progress, fetchItems]);
+
+    // 処理中のアイテムがある場合、定期的にリストを更新
+    useEffect(() => {
+        if (!hasProcessingItems) return;
+
+        const intervalId = setInterval(() => {
+            fetchItems();
+        }, 2000); // 2秒ごとに更新
+
+        return () => clearInterval(intervalId);
+    }, [hasProcessingItems, fetchItems]);
 
     // 初回読み込み
     useEffect(() => {
@@ -426,10 +464,23 @@ export default function HistoryPage() {
                                         status={item.status || "目立った傷や汚れなし"}
                                         createdAt={item.created_at}
                                         isEditMode={false}
+                                        isProcessing={item.is_processing}
                                         className="transition-transform"
                                     />
                                 </div>
                             ))
+                        )}
+                    </div>
+                )}
+
+                {/* 無限スクロール用トリガー & ローディング表示 */}
+                {!isEditMode && hasMore && (
+                    <div
+                        ref={observerTarget}
+                        className="flex justify-center py-8 w-full"
+                    >
+                        {loading && (
+                            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
                         )}
                     </div>
                 )}

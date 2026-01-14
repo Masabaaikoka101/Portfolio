@@ -149,6 +149,7 @@ function HomeContent() {
     setCurrentPreviewIndex,
     handleFilesSelect,
     startAnalysis,
+    startBatchWithDrafts,
     save: saveItem,
     reset,
     reorderImages,
@@ -257,15 +258,19 @@ function HomeContent() {
               updateBatchItem={updateBatchItem}
               updateAllBatchItems={updateAllBatchItems}
               onNext={async () => {
-                // 即座に遷移を実行することを優先
-                const startPromise = startAnalysis();
-                // 遷移を先に行う（楽観的UI）
-                router.push("/history");
-                toast.success("一括出品の生成を開始しました");
+                // 下書きを即座に作成（元画像で）
+                const createdIds = await startBatchWithDrafts();
 
-                // 実際には startAnalysis は非同期でバックグラウンド処理を開始するだけなので
-                // awaitしても早いはずだが、念のため並列化または待機・遷移順序を調整
-                await startPromise;
+                if (createdIds.length === 0) {
+                  // 作成失敗時は遷移しない
+                  return;
+                }
+
+                // 作成成功後、即座に履歴へ遷移
+                toast.success(`${createdIds.length}件の生成を開始しました`);
+                router.push("/history");
+
+                // バックグラウンド処理は startBatchWithDrafts 内で継続される
               }}
               onBack={goToPrevStep}
               isAnalyzing={isAnalyzing}
