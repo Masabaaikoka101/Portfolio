@@ -77,13 +77,18 @@ export function ComparisonSlider({
                 onMouseDown={() => setShowBefore(true)}
                 onMouseUp={() => setShowBefore(false)}
                 onMouseLeave={() => setShowBefore(false)}
-                onTouchStart={() => setShowBefore(true)}
+                onTouchStart={(e) => {
+                    e.preventDefault(); // スクロールを防止
+                    setShowBefore(true);
+                }}
                 onTouchEnd={() => setShowBefore(false)}
+                onTouchCancel={() => setShowBefore(false)}
                 className={cn(
                     "absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full text-xs font-medium transition-all shadow-md backdrop-blur-sm",
                     "bg-white/80 text-gray-600",
                     "hover:bg-white active:bg-gray-100",
-                    "border border-gray-200"
+                    "border border-gray-200",
+                    "touch-manipulation" // タッチ操作を許可
                 )}
             >
                 長押しでBefore

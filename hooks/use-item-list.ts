@@ -67,8 +67,10 @@ export function useItemList(): UseItemListReturn {
         if (typeof window !== 'undefined' && items.length > 0) {
             try {
                 // 容量エラー回避のため、最新の1ページ分のみをキャッシュする
-                // また、必要なフィールドのみに絞ることも検討できるが、まずは件数で制限
-                const itemsToCache = items.slice(0, ITEMS_PER_PAGE);
+                // 生成中のアイテムはキャッシュしない（古い状態を表示しないため）
+                const itemsToCache = items
+                    .filter(item => !item.is_processing)
+                    .slice(0, ITEMS_PER_PAGE);
                 sessionStorage.setItem(CACHE_KEY, JSON.stringify(itemsToCache));
             } catch (e) {
                 // 容量オーバーの場合は警告を出して無視する（アプリをクラッシュさせない）
@@ -89,10 +91,20 @@ export function useItemList(): UseItemListReturn {
                 if (cached) {
                     const parsed = JSON.parse(cached);
                     if (Array.isArray(parsed) && parsed.length > 0) {
-                        setItems(parsed);
+                        // 安全のため、キャッシュから復元時は is_processing を false に上書き
+                        const sanitized = parsed.map((item: Item) => ({
+                            ...item,
+                            is_processing: false
+                        }));
+                        setItems(sanitized);
                         setLoading(false);
                         const estimatedPage = Math.floor(parsed.length / ITEMS_PER_PAGE);
                         setPage(estimatedPage > 0 ? estimatedPage - 1 : 0);
+                        // キャッシュが1ページ分未満なら追加読み込み不要
+                        setHasMore(parsed.length >= ITEMS_PER_PAGE);
+                    } else {
+                        // キャッシュが空の場合
+                        setHasMore(false);
                     }
                 }
             } catch (error) {
