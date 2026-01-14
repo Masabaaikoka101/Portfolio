@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Reorder } from "framer-motion";
+import { Reorder, useDragControls } from "framer-motion";
 import { ItemCard } from "@/components/item-card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Trash2, CheckSquare, Square, X, GripVertical, Download, Camera } from "lucide-react";
@@ -27,6 +27,85 @@ import { useBatchJob } from "@/contexts/BatchJobContext";
 import { useBatchAnalysis } from "@/hooks/use-batch-analysis";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBulkDownload } from "@/hooks/use-bulk-download";
+import type { Item } from "@/types";
+
+
+/**
+ * ドラッグ操作可能な履歴アイテムコンポーネント
+ * 
+ * Why: useDragControlsフックは各アイテムコンポーネント内で呼び出す必要があるため分離
+ */
+interface DraggableHistoryItemProps {
+    item: Item;
+    index: number;
+    isSelected: boolean;
+    onClick: (index: number, e: React.MouseEvent) => void;
+}
+
+function DraggableHistoryItem({ item, index, isSelected, onClick }: DraggableHistoryItemProps) {
+    const controls = useDragControls();
+
+    return (
+        <Reorder.Item
+            value={item}
+            dragListener={false} // デフォルトのドラッグを無効化
+            dragControls={controls} // コントロールを紐付け
+            className="relative bg-white rounded-xl border border-gray-200 p-3 hover:shadow-md transition-shadow group"
+            whileDrag={{ scale: 1.02, boxShadow: "0 10px 30px rgba(0,0,0,0.15)", zIndex: 50 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        >
+            <div
+                className="flex items-center gap-4 cursor-pointer"
+                onClick={(e) => onClick(index, e)}
+            >
+                {/* ドラッグハンドル: ここをタッチ/クリックした時だけドラッグ開始 */}
+                <div
+                    className="flex-shrink-0 text-gray-400 hover:text-gray-600 p-2 -ml-2 cursor-grab active:cursor-grabbing touch-none"
+                    onPointerDown={(e) => controls.start(e)}
+                >
+                    <GripVertical className="h-5 w-5" />
+                </div>
+
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
+                    {index + 1}
+                </div>
+                <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-100 relative">
+                    <Image
+                        src={item.image_url}
+                        alt={item.title}
+                        fill
+                        className="object-cover pointer-events-none"
+                        sizes="64px"
+                        draggable={false}
+                    />
+                    {/* ホバー時の白オーバーレイ */}
+                    <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-25 transition-opacity duration-200 pointer-events-none" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-medium text-gray-900 truncate">
+                        {item.title}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                        ¥{item.price.toLocaleString()}
+                    </p>
+                </div>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onClick(index, e);
+                    }}
+                    className="flex-shrink-0 h-12 w-12 -mr-2 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
+                >
+                    {isSelected ? (
+                        <CheckSquare className="h-6 w-6 text-blue-600" />
+                    ) : (
+                        <Square className="h-6 w-6 text-gray-400" />
+                    )}
+                </button>
+            </div>
+        </Reorder.Item>
+    );
+}
 
 export default function HistoryPage() {
     const router = useRouter();
@@ -323,65 +402,13 @@ export default function HistoryPage() {
                                 as="div"
                             >
                                 {items.map((item, index) => (
-                                    <Reorder.Item
+                                    <DraggableHistoryItem
                                         key={item.id}
-                                        value={item}
-                                        className="relative bg-white rounded-xl border border-gray-200 p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow group"
-                                        whileDrag={{ scale: 1.02, boxShadow: "0 10px 30px rgba(0,0,0,0.15)", zIndex: 50 }}
-                                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                                    >
-                                        <div
-                                            className="flex items-center gap-4 cursor-pointer"
-                                            onClick={(e) => {
-                                                if (isEditMode) {
-                                                    handleItemClick(index, e);
-                                                }
-                                            }}
-                                        >
-                                            <div className="flex-shrink-0 text-gray-400 hover:text-gray-600">
-                                                <GripVertical className="h-5 w-5" />
-                                            </div>
-                                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
-                                                {index + 1}
-                                            </div>
-                                            <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-100 relative">
-                                                <Image
-                                                    src={item.image_url}
-                                                    alt={item.title}
-                                                    fill
-                                                    className="object-cover pointer-events-none"
-                                                    sizes="64px"
-                                                    draggable={false}
-                                                />
-                                                {/* ホバー時の白オーバーレイ */}
-                                                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-25 transition-opacity duration-200 pointer-events-none" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="text-sm font-medium text-gray-900 truncate">
-                                                    {item.title}
-                                                </h3>
-                                                <p className="text-sm text-gray-500">
-                                                    ¥{item.price.toLocaleString()}
-                                                </p>
-                                            </div>
-                                            <button
-                                                onClick={(e) => {
-                                                    // 親のonClickが発火しないようにstopPropagationするが、
-                                                    // 親も同じハンドラを呼ぶので、ここでのクリックはボタンの拡大エリアとしての役割だけでよい。
-                                                    // しかし、二重発火を防ぐためにstopPropagationは必要。
-                                                    e.stopPropagation();
-                                                    handleItemClick(index, e);
-                                                }}
-                                                className="flex-shrink-0 h-12 w-12 -mr-2 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
-                                            >
-                                                {selectedIds.has(item.id) ? (
-                                                    <CheckSquare className="h-6 w-6 text-blue-600" />
-                                                ) : (
-                                                    <Square className="h-6 w-6 text-gray-400" />
-                                                )}
-                                            </button>
-                                        </div>
-                                    </Reorder.Item>
+                                        item={item}
+                                        index={index}
+                                        isSelected={selectedIds.has(item.id)}
+                                        onClick={handleItemClick}
+                                    />
                                 ))}
                             </Reorder.Group>
                         ) : (
