@@ -15,6 +15,7 @@
  * - Controlled Form: useState + onChange で入力値を管理
  * - Toggle Pattern: isLoginフラグでログイン/登録を切り替え
  * - Floating Label Pattern: ラベルが入力時に上に移動するアニメーション
+ * - Real-time Validation: 入力中にパスワード要件をチェック
  *
  * Learning:
  * - Supabase Auth: https://supabase.com/docs/guides/auth/quickstarts/nextjs
@@ -23,13 +24,13 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff, Check, X } from "lucide-react";
 
 /**
  * フローティングラベル付き入力欄コンポーネント
@@ -130,6 +131,22 @@ function FloatingInput({
 }
 
 /**
+ * パスワード要件チェックリストアイテム
+ */
+function RequirementItem({ met, text }: { met: boolean; text: string }) {
+    return (
+        <div className={`flex items-center gap-2 text-xs transition-colors duration-200 ${met ? "text-green-600 font-medium" : "text-gray-400"}`}>
+            {met ? (
+                <Check className="h-4 w-4" />
+            ) : (
+                <div className="h-4 w-4 rounded-full border border-gray-300" />
+            )}
+            <span>{text}</span>
+        </div>
+    );
+}
+
+/**
  * ログインページコンポーネント
  */
 export default function LoginPage() {
@@ -145,12 +162,52 @@ export default function LoginPage() {
     const [email, setEmail] = useState("");
     /** パスワード */
     const [password, setPassword] = useState("");
+    /** 確認用パスワード */
+    const [confirmPassword, setConfirmPassword] = useState("");
+
+    // パスワード要件チェック
+    const requirements = useMemo(() => {
+        return {
+            length: password.length >= 8,
+            notOnlyNumbers: password.length > 0 && !/^\d+$/.test(password), // 数字のみはNG
+        };
+    }, [password]);
+
+    // 登録ボタンを有効にする条件
+    // 必須: 8文字以上 AND 数字以外を含む AND (確認パスワード一致 OR ログインモード)
+    const isFormValid = useMemo(() => {
+        if (isLogin) return email.length > 0 && password.length > 0;
+
+        return (
+            email.length > 0 &&
+            requirements.length &&
+            requirements.notOnlyNumbers &&
+            password === confirmPassword
+        );
+    }, [isLogin, email, password, confirmPassword, requirements]);
 
     /**
      * 認証処理
      */
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // 新規登録時の追加バリデーション
+        if (!isLogin) {
+            if (!requirements.length) {
+                toast.error("パスワードは8文字以上で入力してください");
+                return;
+            }
+            if (!requirements.notOnlyNumbers) {
+                toast.error("パスワードは英数字で入力してください");
+                return;
+            }
+            if (password !== confirmPassword) {
+                toast.error("パスワードが一致しません");
+                return;
+            }
+        }
+
         setLoading(true);
 
         try {
@@ -375,16 +432,38 @@ export default function LoginPage() {
                         required
                     />
 
-                    <FloatingInput
-                        id="password"
-                        label="パスワード"
-                        type="password"
-                        value={password}
-                        onChange={setPassword}
-                        autoComplete="current-password"
-                        required
-                        minLength={6}
-                    />
+                    <div className="space-y-2">
+                        <FloatingInput
+                            id="password"
+                            label="パスワード"
+                            type="password"
+                            value={password}
+                            onChange={setPassword}
+                            autoComplete="current-password"
+                            required
+                        />
+
+                        {/* パスワード要件チェックリスト（新規登録時のみ） */}
+                        {!isLogin && (
+                            <div className="px-1 space-y-1">
+                                <RequirementItem met={requirements.length} text="8文字以上" />
+                                <RequirementItem met={requirements.notOnlyNumbers} text="英数字" />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* パスワード（確認用）（新規登録時のみ） */}
+                    {!isLogin && (
+                        <FloatingInput
+                            id="confirm-password"
+                            label="パスワード（確認用）"
+                            type="password"
+                            value={confirmPassword}
+                            onChange={setConfirmPassword}
+                            autoComplete="new-password"
+                            required
+                        />
+                    )}
 
                     {/* パスワードを忘れた場合（ログインモードのみ表示） */}
                     {isLogin && (
@@ -401,8 +480,8 @@ export default function LoginPage() {
 
                     <Button
                         type="submit"
-                        className="w-full bg-blue-600 hover:bg-blue-700 font-bold py-3"
-                        disabled={loading}
+                        className="w-full bg-blue-600 hover:bg-blue-700 font-bold py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={loading || !isFormValid}
                     >
                         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {isLogin ? "ログイン" : "アカウント登録"}
@@ -413,7 +492,12 @@ export default function LoginPage() {
                 <div className="text-center text-sm">
                     <button
                         type="button"
-                        onClick={() => setIsLogin(!isLogin)}
+                        onClick={() => {
+                            setIsLogin(!isLogin);
+                            // モード切り替え時にフォームをクリア
+                            setPassword("");
+                            setConfirmPassword("");
+                        }}
                         className="font-medium text-blue-600 hover:text-blue-500 hover:underline"
                     >
                         {isLogin
