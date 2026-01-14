@@ -40,6 +40,8 @@ export const ItemSchema = z.object({
     id: z.string().uuid(),
     user_id: z.string().uuid().optional(),
     image_url: z.string().url(),
+    original_image_url: z.string().url().optional(),
+    original_other_images: z.array(z.string()).optional(), // 2枚目以降の元画像URL
     other_images: z.array(z.string()).optional(),
     title: z.string().min(1).max(TITLE_MAX_LENGTH),
     description: z.string().min(1),
@@ -48,6 +50,7 @@ export const ItemSchema = z.object({
     category: z.string().optional(),
     tags: z.array(z.string()).optional(),
     sort_order: z.number().int().optional(), // 並び順（0が先頭）
+    is_processing: z.boolean().optional(), // 生成処理中フラグ
     created_at: z.string(),
     updated_at: z.string().optional(),
 });
