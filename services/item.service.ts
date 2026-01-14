@@ -57,7 +57,8 @@ export const ItemService = {
      * @throws アップロードエラー時
      */
     async uploadImage(fileBlob: Blob, userId: string): Promise<string> {
-        const fileName = `${userId}/${Date.now()}.png`;
+        const uniqueId = Math.random().toString(36).substring(2, 9);
+        const fileName = `${userId}/${Date.now()}-${uniqueId}.png`;
 
         // タイムアウトPromiseを用意 (30秒)
         const timeoutPromise = new Promise((_, reject) =>
@@ -108,7 +109,9 @@ export const ItemService = {
         imageUrl: string,
         formState: ItemFormState,
         tags: string[] = [],
-        backgroundType?: string
+        backgroundType?: string,
+        originalImageUrl?: string,
+        originalOtherImages?: string[]
     ): Promise<void> {
         // システムタグ処理: 背景設定があればタグに追加
         let finalTags = [...tags];
@@ -122,6 +125,8 @@ export const ItemService = {
         const fullData = {
             user_id: userId,
             image_url: imageUrl,
+            original_image_url: originalImageUrl,
+            original_other_images: originalOtherImages ?? [],
             other_images: formState.other_images ?? [],
             title: formState.title,
             description: formState.description,
@@ -175,5 +180,96 @@ export const ItemService = {
         const { data: { user }, error } = await supabase.auth.getUser();
         if (error) throw error;
         return user;
+    },
+
+    /**
+     * 下書きアイテムを作成（is_processing = true）
+     * リアルタイム進捗表示用
+     */
+    async createDraftItem(
+        userId: string,
+        originalImageUrl: string,
+        formState: { title: string; description: string; price: number; status: string },
+        backgroundType?: string
+    ): Promise<{ data: { id: string } | null; error: Error | null }> {
+        // システムタグ処理
+        const finalTags: string[] = [];
+        if (backgroundType) {
+            finalTags.push(`${SYSTEM_TAG_PREFIX}${backgroundType}`);
+        }
+
+        const baseData = {
+            user_id: userId,
+            image_url: originalImageUrl, // 最初は元画像をメイン画像として使用
+            original_image_url: originalImageUrl,
+            title: formState.title,
+            description: formState.description,
+            price: formState.price,
+            status: formState.status,
+            category: DEFAULTS.category,
+            tags: finalTags,
+        };
+
+        // まず is_processing を含むデータで挿入を試行
+        let { data, error } = await supabase
+            .from("items")
+            .insert({ ...baseData, is_processing: true })
+            .select("id")
+            .single();
+
+        // is_processing カラムがない場合やその他のエラーのフォールバック
+        if (error) {
+            console.warn("Primary insert failed, inserting without is_processing:", error.message);
+            const fallback = await supabase
+                .from("items")
+                .insert(baseData)
+                .select("id")
+                .single();
+
+            data = fallback.data;
+            error = fallback.error;
+        }
+
+        if (error) {
+            return { data: null, error: new Error(error.message) };
+        }
+        return { data, error: null };
+    },
+
+    /**
+     * 下書きアイテムを更新（生成完了時）
+     */
+    async updateDraftItem(
+        itemId: string,
+        updates: {
+            image_url?: string;
+            original_image_url?: string;
+            title?: string;
+            description?: string;
+            price?: number;
+            status?: string;
+            is_processing?: boolean;
+        }
+    ): Promise<void> {
+        let { error } = await supabase
+            .from("items")
+            .update(updates)
+            .eq("id", itemId);
+
+        // is_processing カラムがない場合やその他のエラーのフォールバック
+        if (error) {
+            console.warn("Primary update failed, updating without is_processing:", error.message);
+            const { is_processing: _is_processing, ...updatesWithoutProcessing } = updates;
+            const fallback = await supabase
+                .from("items")
+                .update(updatesWithoutProcessing)
+                .eq("id", itemId);
+
+            error = fallback.error;
+        }
+
+        if (error) {
+            throw new Error(`Failed to update draft item: ${error.message}`);
+        }
     }
 };
