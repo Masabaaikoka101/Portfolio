@@ -1,4 +1,4 @@
-import { Camera, Copy, Check, Download, Edit2, Sparkles, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import { Camera, Copy, Check, Download, Edit2, Sparkles, ChevronLeft, ChevronRight, Plus, X, ChevronDown } from "lucide-react";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,12 @@ import { ComparisonSlider } from "@/components/comparison-slider";
 import { Label } from "@/components/ui/label";
 import { useMercariPreview } from "@/components/features/preview/use-mercari-preview";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { ItemStatus } from "@/types";
 import { STATUS_OPTIONS } from "@/lib/constants";
 import Image from "next/image";
@@ -110,7 +116,7 @@ export function MercariPreview({
     onRegenerate,
 }: MercariPreviewProps) {
 
-    const { copiedField, handleCopy, handleDownload } = useMercariPreview();
+    const { copiedField, handleCopy, handleDownload, handleDownloadMultiple } = useMercariPreview();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // 互換性対応: 配列がない場合は単体propを使用
@@ -233,15 +239,49 @@ export function MercariPreview({
                             )}
 
                             {displayImage && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 px-2 text-gray-500 hover:text-blue-600"
-                                    onClick={() => handleDownload(displayImage, title)}
-                                >
-                                    <Download className="h-4 w-4 mr-1" />
-                                    <span className="text-xs">DL</span>
-                                </Button>
+                                (() => {
+                                    // ダウンロード対象の画像を特定（処理済み優先、なければオリジナル）
+                                    const downloadTargets = images.map((img, i) => img ?? originalImages[i]).filter((img): img is string => !!img);
+                                    const hasMultipleImages = downloadTargets.length > 1;
+
+                                    if (hasMultipleImages) {
+                                        return (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-7 px-2 text-gray-500 hover:text-blue-600 gap-1"
+                                                    >
+                                                        <Download className="h-4 w-4" />
+                                                        <span className="text-xs">保存</span>
+                                                        <ChevronDown className="h-3 w-3 opacity-50" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => handleDownload(displayImage, title)}>
+                                                        表示画像を保存
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleDownloadMultiple(downloadTargets, title)}>
+                                                        まとめて保存
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        );
+                                    } else {
+                                        return (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-7 w-7 p-0 text-gray-500 hover:text-blue-600"
+                                                onClick={() => handleDownload(displayImage, title)}
+                                                title="画像を保存"
+                                            >
+                                                <Download className="h-4 w-4" />
+                                            </Button>
+                                        );
+                                    }
+                                })()
                             )}
                         </div>
                     </div>
@@ -567,7 +607,7 @@ export function MercariPreview({
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="absolute right-2 top-2 h-8 w-8 text-gray-400 hover:text-blue-600 bg-white/80 border shadow-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                                        className="absolute right-2 top-2 h-8 w-8 text-gray-400 hover:text-blue-600 bg-white/80 border shadow-sm rounded-md transition-colors"
                                         onClick={() => handleCopy(description, "description")}
                                         title="商品説明をコピー"
                                     >
