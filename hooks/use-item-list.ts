@@ -12,7 +12,7 @@
  * - 単体テストが容易
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import type { Item } from "@/types";
@@ -34,6 +34,10 @@ interface UseItemListReturn {
     showUndo: boolean;
     /** 商品の並び替え（UI上のみ、DB保存なし） */
     reorderItems: (newItems: Item[]) => void;
+    /** さらに読み込むデータがあるか */
+    hasMore: boolean;
+    /** 追加読み込み */
+    loadMore: () => void;
 }
 
 const UNDO_TIMEOUT_MS = 5000;
@@ -47,7 +51,55 @@ export function useItemList(): UseItemListReturn {
     const [isDeleting, setIsDeleting] = useState(false);
     const [deletedItems, setDeletedItems] = useState<Item[]>([]);
     const [showUndo, setShowUndo] = useState(false);
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
     const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const ITEMS_PER_PAGE = 24;
+
+    const itemsRef = useRef<Item[]>(items);
+    const pageRef = useRef<number>(page);
+    const CACHE_KEY = "mercari_ai_items_cache";
+
+    useEffect(() => {
+        itemsRef.current = items;
+        // キャッシュの保存
+        if (typeof window !== 'undefined' && items.length > 0) {
+            try {
+                // 容量エラー回避のため、最新の1ページ分のみをキャッシュする
+                // また、必要なフィールドのみに絞ることも検討できるが、まずは件数で制限
+                const itemsToCache = items.slice(0, ITEMS_PER_PAGE);
+                sessionStorage.setItem(CACHE_KEY, JSON.stringify(itemsToCache));
+            } catch (e) {
+                // 容量オーバーの場合は警告を出して無視する（アプリをクラッシュさせない）
+                console.warn("Failed to save cache (QuotaExceededError):", e);
+            }
+        }
+    }, [items]);
+
+    useEffect(() => {
+        pageRef.current = page;
+    }, [page]);
+
+    // キャッシュの復元（マウント時）
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const cached = sessionStorage.getItem(CACHE_KEY);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        setItems(parsed);
+                        setLoading(false);
+                        const estimatedPage = Math.floor(parsed.length / ITEMS_PER_PAGE);
+                        setPage(estimatedPage > 0 ? estimatedPage - 1 : 0);
+                    }
+                }
+            } catch (error) {
+                console.warn("Failed to load cache", error);
+            }
+        }
+    }, []);
 
     /**
      * 削除されたアイテムの参照（クロージャ問題を回避するため）
@@ -61,23 +113,84 @@ export function useItemList(): UseItemListReturn {
      * 
      * Note: sort_orderが設定されている場合はその順序、
      * そうでない場合は作成日時順でソート
+     * @param isLoadMore 追加読み込みかどうか
      */
-    const fetchItems = useCallback(async () => {
-        setLoading(true);
-        const { data, error } = await supabase
+    const fetchItems = useCallback(async (isLoadMore = false) => {
+        // Refから最新の値を取得
+        const currentItems = itemsRef.current;
+        const currentPage = pageRef.current;
+
+        if (!isLoadMore) {
+            // キャッシュデータがない場合のみローディングを表示（SWRライクな挙動）
+            if (currentItems.length === 0) {
+                setLoading(true);
+            }
+        }
+
+        // 次のページ番号を計算
+        // 追加読み込みの場合は現在のページ + 1、それ以外（リセット）は 0
+        const nextPage = isLoadMore ? currentPage + 1 : 0;
+        const from = nextPage * ITEMS_PER_PAGE;
+        const to = from + ITEMS_PER_PAGE - 1;
+
+        // まず is_processing を含むクエリを試行
+        let query = supabase
             .from("items")
-            .select("id, image_url, title, description, price, status, created_at, sort_order")
+            .select("id, image_url, original_image_url, title, description, price, status, created_at, sort_order, is_processing")
             .order("sort_order", { ascending: true, nullsFirst: false })
-            .order("created_at", { ascending: false });
+            .order("created_at", { ascending: false })
+            .range(from, to);
+
+        let { data, error } = await query;
+
+        // is_processing カラムがない場合やその他のエラーでのフォールバック
+        if (error) {
+            console.warn("Primary query failed, using fallback query:", error.message);
+            const fallbackQuery = supabase
+                .from("items")
+                .select("id, image_url, original_image_url, title, description, price, status, created_at, sort_order")
+                .order("sort_order", { ascending: true, nullsFirst: false })
+                .order("created_at", { ascending: false })
+                .range(from, to);
+
+            const fallback = await fallbackQuery;
+
+            if (!fallback.error) {
+                data = fallback.data?.map(item => ({ ...item, is_processing: false })) || null;
+                error = null; // フォールバック成功ならエラーをクリア
+            } else {
+                // フォールバックも失敗した場合は元のエラーを優先（またはフォールバックのエラーを表示）
+                console.error("Fallback query also failed:", fallback.error);
+            }
+        }
 
         if (error) {
             console.error("Error fetching items:", error);
-            toast.error("商品の取得に失敗しました");
+            if (!isLoadMore) {
+                toast.error("商品の取得に失敗しました");
+            }
         } else {
-            setItems(data || []);
+            const newItems = data || [];
+            if (isLoadMore) {
+                setItems(prev => [...prev, ...newItems]);
+            } else {
+                setItems(newItems);
+            }
+
+            setPage(nextPage);
+            setHasMore(newItems.length === ITEMS_PER_PAGE);
         }
         setLoading(false);
     }, []);
+
+    /**
+     * 追加読み込み
+     */
+    const loadMore = useCallback(() => {
+        if (!loading && hasMore) {
+            fetchItems(true);
+        }
+    }, [loading, hasMore, fetchItems]);
 
     /**
      * 削除を取り消し
@@ -226,6 +339,8 @@ export function useItemList(): UseItemListReturn {
         undoDelete,
         showUndo,
         reorderItems,
+        hasMore,
+        loadMore,
     };
 }
 

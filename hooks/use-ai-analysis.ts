@@ -129,23 +129,25 @@ export function useAiAnalysis({
         });
 
         if (mode === "batch") {
-            const promises = filesToProcess.map(async (file, i) => {
+            // 順次処理を行うための for...of ループ
+            // Why Promise.allをやめるのか: サーバー負荷軽減とレート制限回避のため
+            for (let i = 0; i < filesToProcess.length; i++) {
+                const file = filesToProcess[i];
                 const index = getRealIndex(i);
                 const itemSetting = batchItems[index];
 
                 if (!itemSetting) {
                     console.warn(`Batch item setting not found for index ${index}. Skipping analysis.`);
-                    // 設定がない場合でも処理完了とみなさないとローディングが終わらない
                     onImageProcessed(index, null);
-                    // テキスト分析ステートも解除
                     setAnalyzingStates(prev => {
                         const next = [...prev];
                         next[index] = false;
                         return next;
                     });
-                    return;
+                    continue;
                 }
 
+                // テキスト生成と画像生成を並列で行う（1アイテム内では並列）
                 const textPromise = AiService.analyzeItem(file, itemSetting.status)
                     .then((result) => {
                         onBatchItemAnalyzed?.(index, result);
@@ -178,11 +180,14 @@ export function useAiAnalysis({
                         onImageProcessed(index, null);
                     });
 
+                // このアイテムの処理が完了するまで待つ
                 await Promise.all([textPromise, imagePromise]);
-            });
 
-            await Promise.all(promises);
-
+                // サーバー/APIへの配慮として少し待機
+                if (i < filesToProcess.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
         } else {
             const shouldAnalyzeText = !targetIndices || targetIndices.includes(0);
 
@@ -206,8 +211,21 @@ export function useAiAnalysis({
                 setIsAnalyzing(false);
             }
 
-            const imageEditPromises = filesToProcess.map(async (file, i) => {
+            // 画像生成を順次実行に変更
+            console.log(`[AiAnalysis] Starting sequential image processing. Total files: ${filesToProcess.length}`);
+
+            for (let i = 0; i < filesToProcess.length; i++) {
+                const file = filesToProcess[i];
                 const index = getRealIndex(i);
+
+                console.log(`[AiAnalysis] Loop iteration ${i}/${filesToProcess.length - 1}, index: ${index}, file: ${file?.name || 'undefined'}`);
+
+                if (!file) {
+                    console.error(`[AiAnalysis] File at index ${i} is undefined, skipping`);
+                    onImageProcessed(index, null);
+                    continue;
+                }
+
                 try {
                     console.log(`[AiAnalysis] Starting image edit for index ${index}. Background: ${backgroundType}`);
                     const result = await AiService.editImage(file, backgroundType);
@@ -216,8 +234,6 @@ export function useAiAnalysis({
                         console.log(`[AiAnalysis] Image ${index} edit success.`);
                         onImageProcessed(index, result.imageUrl);
                     } else {
-                        // 失敗時は null を返すが、呼び出し元でこれを「オリジナル画像の使用」として扱えるようにする必要がある
-                        // 現状は null だとローディング扱いになる可能性がある
                         console.warn(`[AiAnalysis] Image ${index} edit failed/skipped:`, result.error);
                         onImageProcessed(index, null);
                         if (result.error) {
@@ -229,23 +245,27 @@ export function useAiAnalysis({
                     onImageProcessed(index, null);
                     toast.error(`画像${index + 1}: 予期せぬエラーが発生しました`);
                 } finally {
-                    // 画像処理完了時にローディングフラグを下げる
+                    console.log(`[AiAnalysis] Finished iteration ${i}, setting analyzingStates[${index}] = false`);
                     setAnalyzingStates(prev => {
                         const next = [...prev];
                         next[index] = false;
                         return next;
                     });
-                }
-            });
 
-            // 画像生成はすべて終わるまで待つ（isEditingImageの制御）
-            await Promise.all(imageEditPromises);
+                    // サーバー/APIへの配慮として少し待機
+                    if (i < filesToProcess.length - 1) {
+                        console.log(`[AiAnalysis] Waiting 500ms before next iteration...`);
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+            }
+
+            console.log(`[AiAnalysis] Sequential processing complete. All ${filesToProcess.length} images processed.`);
+
             setIsEditingImage(false);
 
-            // 全体完了待ちは呼び出し元にPromiseを返すなら必要だが、
-            // ここでは内部ステート更新が主なので、await Promise.all([textAnalysisPromise, ...imageEditPromises]) は不要になった。
-            // ただし、startAnalysis自体をawaitしている箇所があるかもしれないので、念のため待つ。
-            await Promise.all([textAnalysisPromise, ...imageEditPromises]);
+            // テキスト生成がまだ終わっていなければ待つ
+            await textAnalysisPromise;
         }
 
         setIsAnalyzing(false);

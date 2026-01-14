@@ -28,6 +28,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { toast } from "sonner";
 
 /**
  * ウィザードステップの定義
@@ -38,6 +39,8 @@ import { useImageUpload } from "./use-image-upload";
 import { useAiAnalysis } from "./use-ai-analysis";
 import { useItemStorage } from "./use-item-storage";
 import { useBatchJob } from "@/contexts/BatchJobContext";
+import { AiService } from "@/services/ai.service";
+import { ItemService } from "@/services/item.service";
 
 /**
  * 出品モード
@@ -338,7 +341,82 @@ export function useItemForm(options?: UseItemFormOptions) {
     // =========================================================================
     // 4. 保存処理（useItemStorage から取得）- 依存解決のため上に移動
     // =========================================================================
-    const { isSaving, saveItem: performSave, saveBatchItems: performBatchSave } = useItemStorage();
+    const {
+        isSaving,
+        saveItem: performSave,
+        saveBatchItems: performBatchSave,
+        createDraftBatchItems,
+        updateDraftItem,
+    } = useItemStorage();
+
+    /**
+     * 一括生成：下書き作成→履歴へ遷移→バックグラウンド処理→完了時に更新
+     * 
+     * @returns 作成されたアイテムIDの配列（履歴への遷移後に処理を継続するための参照）
+     */
+    const startBatchWithDrafts = useCallback(async (): Promise<string[]> => {
+        if (mode !== "batch" || batchItems.length === 0) return [];
+
+        // 1. 下書きを即座に作成
+        const createdIds = await createDraftBatchItems(originalImages, batchItems);
+
+        if (createdIds.length === 0) {
+            toast.error("下書きの作成に失敗しました");
+            return [];
+        }
+
+        // 2. バックグラウンドで各アイテムを処理（非同期で継続）
+        (async () => {
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const itemId = createdIds[i];
+                const itemSetting = batchItems[i];
+
+                if (!file || !itemId || !itemSetting) continue;
+
+                try {
+                    // テキスト生成と画像生成を並列実行
+                    const [textResult, imageResult] = await Promise.all([
+                        AiService.analyzeItem(file, itemSetting.status),
+                        AiService.editImage(file, itemSetting.backgroundType)
+                    ]);
+
+                    // 処理済み画像のURLを取得
+                    const processedImageUrl = imageResult.success && imageResult.imageUrl
+                        ? imageResult.imageUrl
+                        : originalImages[i]; // 失敗した場合は元画像を使用
+
+                    // 下書きを更新
+                    await updateDraftItem(
+                        itemId,
+                        processedImageUrl,
+                        textResult.title,
+                        textResult.description,
+                        textResult.price,
+                        itemSetting.status,
+                        originalImages[i]
+                    );
+
+                    console.log(`[BatchDraft] Item ${i} (${itemId}) updated successfully`);
+                } catch (error) {
+                    console.error(`[BatchDraft] Item ${i} (${itemId}) failed:`, error);
+                    // エラー時も is_processing を false に更新
+                    try {
+                        await ItemService.updateDraftItem(itemId, { is_processing: false });
+                    } catch (e) {
+                        console.error(`[BatchDraft] Failed to update is_processing for ${itemId}:`, e);
+                    }
+                }
+
+                // サーバー負荷軽減のため少し待機
+                if (i < selectedFiles.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+        })();
+
+        return createdIds;
+    }, [mode, batchItems, originalImages, selectedFiles, createDraftBatchItems, updateDraftItem]);
 
     /**
      * 商品を保存
@@ -355,9 +433,9 @@ export function useItemForm(options?: UseItemFormOptions) {
                 price,
                 status: status as ItemStatus,
             };
-            await performSave(processedImages, formState, options?.onSuccess, backgroundType);
+            await performSave(processedImages, formState, options?.onSuccess, backgroundType, originalImages);
         }
-    }, [mode, processedImages, originalImages, batchItems, title, description, price, status, performSave, performBatchSave, options?.onSuccess]);
+    }, [mode, processedImages, originalImages, batchItems, title, description, price, status, performSave, performBatchSave, options?.onSuccess, backgroundType]);
 
 
     useEffect(() => {
@@ -454,7 +532,7 @@ export function useItemForm(options?: UseItemFormOptions) {
         setCurrentPreviewIndex(0);
         setBatchItems([]);
         setAnalyzingStates([]);
-    }, [resetImage, setOriginalImages, setProcessedImages]);
+    }, [resetImage, setOriginalImages, setProcessedImages, setAnalyzingStates]);
 
     // =========================================================================
     // 6. 戻り値（UIコンポーネントで使用）
@@ -502,6 +580,7 @@ export function useItemForm(options?: UseItemFormOptions) {
         handleFilesSelect,
         addImages: appendImages, // 画像追加
         startAnalysis,
+        startBatchWithDrafts, // 一括生成（リアルタイム進捗対応）
         save,
         reset,
         editImage,
