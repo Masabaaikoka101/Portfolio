@@ -262,9 +262,20 @@ export function SiteHeader() {
                                             className="flex items-center gap-1 hover:bg-gray-100 px-2"
                                         >
                                             {/* ユーザーアバター */}
-                                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-700 font-semibold text-sm">
-                                                {getUserInitial()}
-                                            </div>
+                                            {user.user_metadata?.avatar_url ? (
+                                                <div className="relative h-8 w-8 rounded-full overflow-hidden border border-gray-200">
+                                                    <Image
+                                                        src={user.user_metadata.avatar_url}
+                                                        alt="Avatar"
+                                                        fill
+                                                        className="object-cover"
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-700 font-semibold text-sm">
+                                                    {getUserInitial()}
+                                                </div>
+                                            )}
                                             <ChevronDown className="h-3 w-3 text-gray-500" />
                                         </Button>
                                     </DropdownMenuTrigger>
