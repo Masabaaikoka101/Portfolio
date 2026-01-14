@@ -1,5 +1,5 @@
 import { Camera, Copy, Check, Download, Edit2, Sparkles, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { ItemStatus } from "@/types";
 import { STATUS_OPTIONS } from "@/lib/constants";
 import Image from "next/image";
-import { Reorder } from "framer-motion";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    rectSortingStrategy,
+} from "@dnd-kit/sortable";
+import { SortableImageItem } from "@/components/features/preview/sortable-image-item";
 
 
 /**
@@ -143,14 +159,48 @@ export function MercariPreview({
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [selectedIndex, images.length, onImageSelect]);
 
-    // DnD用のローカルステート（インデックスの配列）
-    const [orderedIndices, setOrderedIndices] = React.useState<number[]>([]);
+    // DnD用のローカルステート（画像インデックスの配列 = 並び順）
+    const [orderedIndices, setOrderedIndices] = useState<number[]>([]);
 
-    // propsのoriginalImagesが変更されたら、インデックスをリセット
+    // propsのimagesが変更されたら、インデックスをリセット
+    // Note: 親から並び替え済みの配列が渡されるため、内容変更時にリセットが必要
+    const imagesKey = images.join(','); // 画像URLを結合してキーを作成
     useEffect(() => {
-        // console.log("MercariPreview: originalImages changed, resetting orderedIndices", originalImages);
-        setOrderedIndices(originalImages.map((_, i) => i));
-    }, [originalImages]);
+        // images配列の長さに合わせてインデックスを生成
+        setOrderedIndices(images.map((_, i) => i));
+    }, [imagesKey]); // images内容の変更を検知
+
+    // dnd-kit Sensors - 感度調整
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 5, // 5px動かないとドラッグ開始しない（小さいほど敏感）
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    // ドラッグ終了ハンドラ
+    const handleDragEnd = useCallback((event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const oldIndex = orderedIndices.indexOf(Number(active.id));
+        const newIndex = orderedIndices.indexOf(Number(over.id));
+
+        if (oldIndex === -1 || newIndex === -1) return;
+
+        const newOrder = arrayMove(orderedIndices, oldIndex, newIndex);
+        setOrderedIndices(newOrder);
+
+        // 親コンポーネントに通知
+        onReorder?.(newOrder);
+    }, [orderedIndices, onReorder]);
+
+    // SortableContext用のID配列 (文字列)
+    const sortableIds = orderedIndices.map(idx => String(idx));
 
     return (
         <div
@@ -202,100 +252,68 @@ export function MercariPreview({
                         {/* Batchモードでも表示するように条件を変更 */}
                         {(showThumbnails || mode === "batch") && (
                             <div className="order-1 w-full md:w-20 md:shrink-0">
-                                <Reorder.Group
-                                    axis="y"
-                                    values={orderedIndices}
-                                    onReorder={setOrderedIndices}
-                                    className="flex flex-wrap gap-2 w-full md:flex-col md:flex-nowrap"
+                                <DndContext
+                                    sensors={sensors}
+                                    collisionDetection={closestCenter}
+                                    onDragEnd={handleDragEnd}
                                 >
-                                    {orderedIndices.map((originalIndex) => {
-                                        const orig = originalImages[originalIndex];
-                                        const processed = images[originalIndex];
-                                        const isThisLoading = loadingStates?.[originalIndex] ?? false;
-                                        const thumbSrc = processed ?? orig;
-                                        const isActive = originalIndex === selectedIndex;
-                                        const itemKey = thumbSrc || `index-${originalIndex}`;
+                                    <SortableContext
+                                        items={sortableIds}
+                                        strategy={verticalListSortingStrategy}
+                                    >
+                                        <div className="flex flex-wrap gap-2 w-full md:flex-col md:flex-nowrap">
+                                            {orderedIndices.map((originalIndex, displayIndex) => {
+                                                const orig = originalImages[originalIndex];
+                                                const processed = images[originalIndex];
+                                                const isThisLoading = loadingStates?.[originalIndex] ?? false;
+                                                const thumbSrc = processed ?? orig;
+                                                const isActive = originalIndex === selectedIndex;
 
-                                        return (
-                                            <Reorder.Item
-                                                key={itemKey}
-                                                value={originalIndex}
-                                                drag={!!onReorder}
-                                                onDragEnd={() => onReorder?.(orderedIndices)}
-                                                className="relative w-[calc(25%-6px)] md:w-full aspect-square"
-                                            >
-                                                <div
-                                                    onClick={() => onImageSelect?.(originalIndex)}
-                                                    className={cn(
-                                                        "relative w-full h-full rounded-md overflow-hidden border-2 transition-all cursor-pointer group bg-gray-50",
-                                                        isActive ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-200 hover:border-gray-300"
-                                                    )}
-                                                >
-                                                    {thumbSrc && (
-                                                        <Image
-                                                            src={thumbSrc}
-                                                            alt={`Slot ${originalIndex}`}
-                                                            fill
-                                                            className="object-cover pointer-events-none"
-                                                            unoptimized
-                                                        />
-                                                    )}
-                                                    {/* メイン画像ラベル */}
-                                                    {originalIndex === 0 && (
-                                                        <div className="absolute top-0 left-0 bg-black/60 text-white text-[10px] font-medium px-2 py-0.5 rounded-br-md z-10 shadow-sm pointer-events-none backdrop-blur-[2px]">
-                                                            メイン
-                                                        </div>
-                                                    )}
-                                                    {isThisLoading && (
-                                                        <div className="absolute inset-0 bg-white/60 animate-pulse flex items-center justify-center">
-                                                            <span className="text-xs text-white font-medium drop-shadow-md">生成中</span>
-                                                        </div>
-                                                    )}
+                                                return (
+                                                    <SortableImageItem
+                                                        key={String(originalIndex)}
+                                                        id={String(originalIndex)}
+                                                        index={originalIndex}
+                                                        imageSrc={thumbSrc}
+                                                        isActive={isActive}
+                                                        isLoading={isThisLoading}
+                                                        isMain={displayIndex === 0}
+                                                        canDelete={!!onDeleteImage && images.length > 1}
+                                                        canDrag={!!onReorder}
+                                                        onClick={() => onImageSelect?.(originalIndex)}
+                                                        onDelete={() => onDeleteImage?.(originalIndex)}
+                                                    />
+                                                );
+                                            })}
 
-                                                    {/* 削除ボタン */}
-                                                    {onDeleteImage && images.length > 1 && (
-                                                        <button
-                                                            className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-black/70 z-20"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                onDeleteImage(originalIndex);
+                                            {/* 画像追加ボタン */}
+                                            {onAddImage && images.length < 5 && (
+                                                <div className="relative w-[calc(25%-6px)] md:w-full aspect-square">
+                                                    <Label
+                                                        className="flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 transition-colors"
+                                                    >
+                                                        <Plus className="h-6 w-6 text-gray-400 mb-1" />
+                                                        <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap">追加</span>
+                                                        <input
+                                                            type="file"
+                                                            ref={fileInputRef}
+                                                            className="hidden"
+                                                            multiple
+                                                            accept="image/*"
+                                                            onChange={(e) => {
+                                                                if (e.target.files && e.target.files.length > 0) {
+                                                                    onAddImage(Array.from(e.target.files));
+                                                                    e.target.value = "";
+                                                                }
                                                             }}
-                                                            title="画像を削除"
-                                                        >
-                                                            <X className="w-3 h-3" />
-                                                        </button>
-                                                    )}
+                                                        />
+                                                    </Label>
+                                                    <span className="sr-only">画像を最大5枚まで追加可能</span>
                                                 </div>
-                                            </Reorder.Item>
-                                        );
-                                    })}
-
-                                    {/* 画像追加ボタン (Reorder.Group内に配置してレイアウトに参加させる) */}
-                                    {onAddImage && images.length < 5 && (
-                                        <div className="relative w-[calc(25%-6px)] md:w-full aspect-square">
-                                            <Label
-                                                className="flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 transition-colors"
-                                            >
-                                                <Plus className="h-6 w-6 text-gray-400 mb-1" />
-                                                <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap">追加</span>
-                                                <input
-                                                    type="file"
-                                                    ref={fileInputRef}
-                                                    className="hidden"
-                                                    multiple
-                                                    accept="image/*"
-                                                    onChange={(e) => {
-                                                        if (e.target.files && e.target.files.length > 0) {
-                                                            onAddImage(Array.from(e.target.files));
-                                                            e.target.value = "";
-                                                        }
-                                                    }}
-                                                />
-                                            </Label>
-                                            <span className="sr-only">画像を最大5枚まで追加可能</span>
+                                            )}
                                         </div>
-                                    )}
-                                </Reorder.Group>
+                                    </SortableContext>
+                                </DndContext>
                             </div>
                         )}
 

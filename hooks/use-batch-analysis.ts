@@ -93,12 +93,12 @@ export function useBatchAnalysis(): UseBatchAnalysisResult {
 
                 const fileName = `batch-${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
                 const { error: uploadError } = await supabase.storage
-                    .from("items")
+                    .from("item-images")
                     .upload(fileName, processedFile);
 
                 if (uploadError) throw uploadError;
 
-                const { data: UrlData } = supabase.storage.from("items").getPublicUrl(fileName);
+                const { data: UrlData } = supabase.storage.from("item-images").getPublicUrl(fileName);
                 const publicUrl = UrlData.publicUrl;
 
                 // ユーザーIDの取得 (Client Componentなのでセッションから)

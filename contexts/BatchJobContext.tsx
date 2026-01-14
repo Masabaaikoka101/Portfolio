@@ -95,7 +95,7 @@ export function BatchJobProvider({ children }: { children: ReactNode }) {
             const { error: dbError } = await supabase.from("items").insert({
                 title: textResult?.title || "",
                 description: textResult?.description || "",
-                price: textResult?.price || 0,
+                price: textResult?.price || 300,
                 status: settings.status,
                 image_url: processedUrl,       // schemaに合わせて修正: images -> image_url
                 user_id: user.id,

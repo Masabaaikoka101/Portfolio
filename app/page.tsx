@@ -266,6 +266,9 @@ function HomeContent() {
                   return;
                 }
 
+                // 状態をリセット（ホーム再訪問時の誤動作防止）
+                reset();
+
                 // 作成成功後、即座に履歴へ遷移
                 toast.success(`${createdIds.length}件の生成を開始しました`);
                 router.push("/history");

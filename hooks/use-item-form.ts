@@ -357,8 +357,13 @@ export function useItemForm(options?: UseItemFormOptions) {
     const startBatchWithDrafts = useCallback(async (): Promise<string[]> => {
         if (mode !== "batch" || batchItems.length === 0) return [];
 
+        // reset()が呼ばれる前に変数をキャプチャ（クロージャに保持）
+        const capturedFiles = [...selectedFiles];
+        const capturedBatchItems = [...batchItems];
+        const capturedOriginalImages = [...originalImages];
+
         // 1. 下書きを即座に作成
-        const createdIds = await createDraftBatchItems(originalImages, batchItems);
+        const createdIds = await createDraftBatchItems(capturedOriginalImages, capturedBatchItems);
 
         if (createdIds.length === 0) {
             toast.error("下書きの作成に失敗しました");
@@ -366,11 +371,12 @@ export function useItemForm(options?: UseItemFormOptions) {
         }
 
         // 2. バックグラウンドで各アイテムを処理（非同期で継続）
+        // Note: reset()が呼ばれてもcaptured変数は保持される
         (async () => {
-            for (let i = 0; i < selectedFiles.length; i++) {
-                const file = selectedFiles[i];
+            for (let i = 0; i < capturedFiles.length; i++) {
+                const file = capturedFiles[i];
                 const itemId = createdIds[i];
-                const itemSetting = batchItems[i];
+                const itemSetting = capturedBatchItems[i];
 
                 if (!file || !itemId || !itemSetting) continue;
 
@@ -384,7 +390,7 @@ export function useItemForm(options?: UseItemFormOptions) {
                     // 処理済み画像のURLを取得
                     const processedImageUrl = imageResult.success && imageResult.imageUrl
                         ? imageResult.imageUrl
-                        : originalImages[i]; // 失敗した場合は元画像を使用
+                        : capturedOriginalImages[i]; // 失敗した場合は元画像を使用
 
                     // 下書きを更新
                     await updateDraftItem(
@@ -394,7 +400,7 @@ export function useItemForm(options?: UseItemFormOptions) {
                         textResult.description,
                         textResult.price,
                         itemSetting.status,
-                        originalImages[i]
+                        capturedOriginalImages[i]
                     );
 
                     console.log(`[BatchDraft] Item ${i} (${itemId}) updated successfully`);
@@ -409,7 +415,7 @@ export function useItemForm(options?: UseItemFormOptions) {
                 }
 
                 // サーバー負荷軽減のため少し待機
-                if (i < selectedFiles.length - 1) {
+                if (i < capturedFiles.length - 1) {
                     await new Promise(resolve => setTimeout(resolve, 500));
                 }
             }
