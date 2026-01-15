@@ -83,35 +83,34 @@ export function useItemList(): UseItemListReturn {
         pageRef.current = page;
     }, [page]);
 
-    // キャッシュの復元（マウント時）
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            try {
-                const cached = sessionStorage.getItem(CACHE_KEY);
-                if (cached) {
-                    const parsed = JSON.parse(cached);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        // 安全のため、キャッシュから復元時は is_processing を false に上書き
-                        const sanitized = parsed.map((item: Item) => ({
-                            ...item,
-                            is_processing: false
-                        }));
-                        setItems(sanitized);
-                        setLoading(false);
-                        const estimatedPage = Math.floor(parsed.length / ITEMS_PER_PAGE);
-                        setPage(estimatedPage > 0 ? estimatedPage - 1 : 0);
-                        // キャッシュが1ページ分未満なら追加読み込み不要
-                        setHasMore(parsed.length >= ITEMS_PER_PAGE);
-                    } else {
-                        // キャッシュが空の場合
-                        setHasMore(false);
-                    }
-                }
-            } catch (error) {
-                console.warn("Failed to load cache", error);
-            }
-        }
-    }, []);
+    // キャッシュの復元は無効化
+    // 理由: キャッシュからの古いデータが一瞬表示され、その後サーバーデータで置き換わるとちらつきが発生するため
+    // サーバーからのデータを常に信頼する方式に変更
+    // useEffect(() => {
+    //     if (typeof window !== 'undefined') {
+    //         try {
+    //             const cached = sessionStorage.getItem(CACHE_KEY);
+    //             if (cached) {
+    //                 const parsed = JSON.parse(cached);
+    //                 if (Array.isArray(parsed) && parsed.length > 0) {
+    //                     const sanitized = parsed.map((item: Item) => ({
+    //                         ...item,
+    //                         is_processing: false
+    //                     }));
+    //                     setItems(sanitized);
+    //                     setLoading(false);
+    //                     const estimatedPage = Math.floor(parsed.length / ITEMS_PER_PAGE);
+    //                     setPage(estimatedPage > 0 ? estimatedPage - 1 : 0);
+    //                     setHasMore(parsed.length >= ITEMS_PER_PAGE);
+    //                 } else {
+    //                     setHasMore(false);
+    //                 }
+    //             }
+    //         } catch (error) {
+    //             console.warn("Failed to load cache", error);
+    //         }
+    //     }
+    // }, []);
 
     /**
      * 削除されたアイテムの参照（クロージャ問題を回避するため）
@@ -145,54 +144,66 @@ export function useItemList(): UseItemListReturn {
         const from = nextPage * ITEMS_PER_PAGE;
         const to = from + ITEMS_PER_PAGE - 1;
 
-        // まず is_processing を含むクエリを試行
-        let query = supabase
-            .from("items")
-            .select("id, image_url, original_image_url, title, description, price, status, created_at, sort_order, is_processing")
-            .order("sort_order", { ascending: true, nullsFirst: false })
-            .order("created_at", { ascending: false })
-            .range(from, to);
-
-        let { data, error } = await query;
-
-        // is_processing カラムがない場合やその他のエラーでのフォールバック
-        if (error) {
-            console.warn("Primary query failed, using fallback query:", error.message);
-            const fallbackQuery = supabase
+        try {
+            // まず is_processing を含むクエリを試行
+            let query = supabase
                 .from("items")
-                .select("id, image_url, original_image_url, title, description, price, status, created_at, sort_order")
+                .select("id, image_url, original_image_url, title, description, price, status, created_at, sort_order, is_processing")
                 .order("sort_order", { ascending: true, nullsFirst: false })
                 .order("created_at", { ascending: false })
                 .range(from, to);
 
-            const fallback = await fallbackQuery;
+            let { data, error } = await query;
 
-            if (!fallback.error) {
-                data = fallback.data?.map(item => ({ ...item, is_processing: false })) || null;
-                error = null; // フォールバック成功ならエラーをクリア
+            // is_processing カラムがない場合やその他のエラーでのフォールバック
+            if (error) {
+                console.warn("Primary query failed, using fallback query:", error.message);
+                const fallbackQuery = supabase
+                    .from("items")
+                    .select("id, image_url, original_image_url, title, description, price, status, created_at, sort_order")
+                    .order("sort_order", { ascending: true, nullsFirst: false })
+                    .order("created_at", { ascending: false })
+                    .range(from, to);
+
+                const fallback = await fallbackQuery;
+
+                if (!fallback.error) {
+                    data = fallback.data?.map(item => ({ ...item, is_processing: false })) || null;
+                    error = null; // フォールバック成功ならエラーをクリア
+                } else {
+                    // フォールバックも失敗した場合は元のエラーを優先（またはフォールバックのエラーを表示）
+                    console.error("Fallback query also failed:", fallback.error);
+                }
+            }
+
+            if (error) {
+                // エラーオブジェクトの詳細をログ出力
+                console.error("Error fetching items:", error.message || error);
+                if (!isLoadMore) {
+                    // 定期実行などで頻繁に出ないように制御するか、ユーザーへの通知は維持
+                    // toast.error("商品の取得に失敗しました"); // 一旦コメントアウトして様子見、もしくは頻度を下げる
+                }
             } else {
-                // フォールバックも失敗した場合は元のエラーを優先（またはフォールバックのエラーを表示）
-                console.error("Fallback query also failed:", fallback.error);
-            }
-        }
+                const newItems = data || [];
 
-        if (error) {
-            console.error("Error fetching items:", error);
-            if (!isLoadMore) {
-                toast.error("商品の取得に失敗しました");
-            }
-        } else {
-            const newItems = data || [];
-            if (isLoadMore) {
-                setItems(prev => [...prev, ...newItems]);
-            } else {
-                setItems(newItems);
-            }
+                // 削除待機中のアイテムをフィルタリング（Undo猶予中に再取得しても復活させない）
+                const pendingDeleteIds = new Set(deletedItemsRef.current.map(i => i.id));
+                const filteredItems = newItems.filter(item => !pendingDeleteIds.has(item.id));
 
-            setPage(nextPage);
-            setHasMore(newItems.length === ITEMS_PER_PAGE);
+                if (isLoadMore) {
+                    setItems(prev => [...prev, ...filteredItems]);
+                } else {
+                    setItems(filteredItems);
+                }
+
+                setPage(nextPage);
+                setHasMore(newItems.length === ITEMS_PER_PAGE);
+            }
+        } catch (e) {
+            console.error("Unexpected error in fetchItems:", e);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     }, []);
 
     /**
