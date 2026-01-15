@@ -20,7 +20,7 @@ import { useRouter } from "next/navigation";
 import { Reorder, useDragControls } from "framer-motion";
 import { ItemCard } from "@/components/item-card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Trash2, CheckSquare, Square, X, GripVertical, Download, Camera } from "lucide-react";
+import { Loader2, Trash2, CheckSquare, Square, X, GripVertical, Download, Camera, Package } from "lucide-react";
 import { useItemList } from "@/hooks/use-item-list";
 import { useItemSelection } from "@/hooks/use-item-selection";
 import { useBatchJob } from "@/contexts/BatchJobContext";
@@ -405,13 +405,16 @@ export default function HistoryPage() {
                         ))}
                     </div>
                 ) : items.length === 0 && !isProcessing ? (
-                    <div className="text-center py-20">
-                        <p className="text-gray-500 mb-4">まだ作成がありません</p>
-                        <Link href="/">
-                            <Button className="bg-gray-900 text-white hover:bg-gray-800">
-                                はじめての作成をする
-                            </Button>
-                        </Link>
+                    <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <div className="bg-gray-100 p-4 rounded-full mb-4">
+                            <Package className="h-8 w-8 text-gray-400" />
+                        </div>
+                        <h3 className="text-lg font-medium text-gray-900 mb-1">
+                            まだ作成済みアイテムはありません
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                            右上の「新規作成」ボタンから出品を始めましょう
+                        </p>
                     </div>
                 ) : (
                     <div className={isEditMode ? "" : "grid grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-4"}>
