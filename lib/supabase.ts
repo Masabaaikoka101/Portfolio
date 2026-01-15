@@ -25,7 +25,7 @@
  * - service_role key は絶対にクライアントに公開しないこと
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
 /**
  * 環境変数から取得
@@ -45,19 +45,11 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 /**
  * Supabaseクライアント（シングルトン）
  *
- * Why シングルトンパターンか:
- * - 複数インスタンスを作成すると、認証状態が共有されない
- * - コネクションプールの効率的な利用
+ * Why createBrowserClientを使うのか:
+ * - @supabase/ssr を使用してCookieベースの認証をサポートするため
+ * - Middlewareと連携してサーバーサイドでの認証状態チェックを可能にする
  *
- * 使用例:
- * ```typescript
- * import { supabase } from "@/lib/supabase";
- *
- * // データ取得
- * const { data, error } = await supabase.from("items").select("*");
- *
- * // 認証
- * const { data: { user } } = await supabase.auth.getUser();
- * ```
+ * Note:
+ * - これにより、認証情報はlocalStorageではなくCookieに保存されます
  */
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
