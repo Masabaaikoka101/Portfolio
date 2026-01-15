@@ -22,7 +22,7 @@ const NavigationGuardContext = createContext<NavigationGuardContextType | null>(
 export function NavigationGuardProvider({ children }: { children: ReactNode }) {
     const [shouldBlock, setShouldBlock] = useState(false);
     const [message, setMessage] = useState(
-        "編集中の内容は保存されていません。ページ・画面を離れると、編集内容は破棄されます。よろしいですか？"
+        "更新せずに編集内容を破棄しますか？"
     );
 
     const setNavigationGuard = useCallback(

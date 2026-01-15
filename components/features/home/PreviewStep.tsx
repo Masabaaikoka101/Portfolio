@@ -27,7 +27,7 @@
 import React, { useState } from "react";
 import { MercariPreview } from "@/components/mercari-preview";
 import { Button } from "@/components/ui/button";
-import { Pencil, X } from "lucide-react";
+import { Pencil } from "lucide-react";
 import type { ItemStatus, BatchItem } from "@/types";
 
 interface PreviewStepProps {
@@ -165,11 +165,7 @@ export function PreviewStep({
         setIsEditing(true);
     };
 
-    // 編集終了
-    const handleEndEditing = () => {
-        setIsEditing(false);
-        setInitialValues(null);
-    };
+
 
     // ナビゲーションガード付きアクション実行
     // 戻り値: true = 続行OK, false = キャンセル
@@ -287,17 +283,13 @@ export function PreviewStep({
                 <h2 className="text-lg font-semibold text-gray-700">
                     {isBatch ? `出品プレビュー (${currentPreviewIndex + 1}/${processedImages.length})` : "出品プレビュー"}
                 </h2>
-                {!isEditing ? (
+                {!isEditing && (
                     <Button onClick={handleStartEditing} className="bg-blue-600 hover:bg-blue-700 text-white">
                         <Pencil className="h-4 w-4 mr-2" />
                         編集する
                     </Button>
-                ) : (
-                    <Button variant="ghost" onClick={handleEndEditing}>
-                        <X className="h-4 w-4 mr-2" />
-                        編集を終了
-                    </Button>
                 )}
+                {/* 編集モード中は「更新」ボタンで保存＆終了（MercariPreview内に配置） */}
             </div>
 
             {/* メインプレビュー */}

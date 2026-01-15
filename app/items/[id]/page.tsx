@@ -93,7 +93,7 @@ export default function ItemDetailPage() {
         } else {
             path();
         }
-    }, [isEditing, router, confirmNavigation]);
+    }, [isDirty, router, confirmNavigation]);
 
     // Intercept back button
     const handleBack = () => handleNavigation("/history");
@@ -203,18 +203,7 @@ export default function ItemDetailPage() {
         }
     };
 
-    const handleCancelEdit = () => {
-        // 変更があれば破棄して元の値に戻す (確認ダイアログなし)
-        if (isDirty && item) {
-            setTitle(item.title || "");
-            setDescription(item.description || "");
-            setPrice(item.price || 0);
-            setStatus(item.status || "");
-            const initImages = [item.image_url, ...(item.other_images || [])].filter(Boolean);
-            setLocalImages(initImages);
-        }
-        setIsEditing(false);
-    };
+
 
     const handleDeleteImage = (index: number) => {
         if (localImages.length <= 1) {
@@ -433,7 +422,7 @@ export default function ItemDetailPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {!isEditing ? (
+                        {!isEditing && (
                             <>
                                 {/* PC Nav (Read Mode) */}
                                 <div className="hidden md:flex gap-2 mr-4">
@@ -449,12 +438,8 @@ export default function ItemDetailPage() {
                                     編集する
                                 </Button>
                             </>
-                        ) : (
-                            <Button variant="ghost" onClick={handleCancelEdit}>
-                                <X className="h-4 w-4 mr-2" />
-                                編集を終了
-                            </Button>
                         )}
+                        {/* 編集モード中は「更新」ボタンで保存＆終了（MercariPreview内に配置） */}
                     </div>
                 </div>
 
