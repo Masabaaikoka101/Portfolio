@@ -165,14 +165,8 @@ export function PreviewStep({
         setIsEditing(true);
     };
 
-    // 編集終了（変更を破棄）
+    // 編集終了
     const handleEndEditing = () => {
-        if (isDirty) {
-            const result = window.confirm(
-                "変更内容が保存されていません。\n\n変更を破棄して終了しますか？"
-            );
-            if (!result) return;
-        }
         setIsEditing(false);
         setInitialValues(null);
     };

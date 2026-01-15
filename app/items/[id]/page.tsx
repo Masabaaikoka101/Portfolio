@@ -196,18 +196,14 @@ export default function ItemDetailPage() {
     };
 
     const handleCancelEdit = () => {
-        // 変更がある場合のみ確認ダイアログを表示
-        if (isDirty) {
-            if (!window.confirm("変更内容が保存されていません。\n\n変更を破棄して終了しますか？")) return;
-            // Revert changes by re-fetching or using initial state logic if stored.
-            if (item) {
-                setTitle(item.title || "");
-                setDescription(item.description || "");
-                setPrice(item.price || 0);
-                setStatus(item.status || "");
-                const initImages = [item.image_url, ...(item.other_images || [])].filter(Boolean);
-                setLocalImages(initImages);
-            }
+        // 変更があれば破棄して元の値に戻す (確認ダイアログなし)
+        if (isDirty && item) {
+            setTitle(item.title || "");
+            setDescription(item.description || "");
+            setPrice(item.price || 0);
+            setStatus(item.status || "");
+            const initImages = [item.image_url, ...(item.other_images || [])].filter(Boolean);
+            setLocalImages(initImages);
         }
         setIsEditing(false);
     };
