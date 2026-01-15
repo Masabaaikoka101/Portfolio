@@ -148,7 +148,7 @@ export function useItemList(): UseItemListReturn {
             // まず is_processing を含むクエリを試行
             const query = supabase
                 .from("items")
-                .select("id, image_url, title, price, status, created_at, sort_order, is_processing")
+                .select("id, image_url, title, description, price, status, created_at, sort_order, is_processing")
                 .order("sort_order", { ascending: true, nullsFirst: true })
                 .order("created_at", { ascending: false })
                 .range(from, to);
@@ -160,7 +160,7 @@ export function useItemList(): UseItemListReturn {
                 console.warn("Primary query failed, using fallback query:", error.message);
                 const fallbackQuery = supabase
                     .from("items")
-                    .select("id, image_url, title, price, status, created_at, sort_order")
+                    .select("id, image_url, title, description, price, status, created_at, sort_order")
                     .order("sort_order", { ascending: true, nullsFirst: true })
                     .order("created_at", { ascending: false })
                     .range(from, to);
