@@ -121,47 +121,7 @@ export default function HistoryPage() {
     const router = useRouter();
     const [isEditMode, setIsEditMode] = useState(false);
 
-    // OAuthコールバック処理（Supabaseがルートページにリダイレクトした場合）
-    const oauthProcessedRef = useRef(false);
-    const [isRedirecting, setIsRedirecting] = useState(false);
-
-    useEffect(() => {
-        // 二重実行防止
-        if (oauthProcessedRef.current) return;
-
-        // URLハッシュにaccess_tokenがあるかチェック
-        const hash = window.location.hash;
-        if (hash && hash.includes("access_token")) {
-            oauthProcessedRef.current = true;
-            setIsRedirecting(true);
-
-            const handleOAuthCallback = async () => {
-                console.log("[HistoryPage] OAuth token detected in URL hash, processing...");
-
-                // セッション確立を待つ
-                const { data: { session }, error } = await supabase.auth.getSession();
-
-                if (error) {
-                    console.error("[HistoryPage] OAuth error:", error);
-                    toast.error("認証に失敗しました");
-                    setIsRedirecting(false);
-                    return;
-                }
-
-                if (session) {
-                    console.log("[HistoryPage] Session established, reloading");
-                    toast.success("認証が完了しました");
-                    // ハッシュを消してリロード（またはそのまま表示）
-                    // ここはルートページなので、リロードしてハッシュを消すのが良い
-                    window.location.href = "/";
-                } else {
-                    setIsRedirecting(false);
-                }
-            };
-
-            handleOAuthCallback();
-        }
-    }, []);
+    // OAuthコールバック処理はmiddlewareとauth/callback/route.tsで処理されるため削除済み
 
 
 
@@ -320,16 +280,7 @@ export default function HistoryPage() {
     // 一括生成中の残りアイテム数（スケルトン表示用）
     const pendingCount = isProcessing ? Math.max(0, total - progress) : 0;
 
-    if (isRedirecting) {
-        return (
-            <div className="flex min-h-screen items-center justify-center">
-                <div className="text-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-                    <p className="text-gray-600">認証処理中...</p>
-                </div>
-            </div>
-        );
-    }
+
 
     return (
         <main className="min-h-screen bg-gray-50">
