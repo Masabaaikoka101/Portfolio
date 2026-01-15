@@ -186,6 +186,14 @@ export default function ItemDetailPage() {
             if (error) throw error;
 
             toast.success("更新しました！");
+
+            // 保存成功時に初期値を更新してDirty状態を解消
+            setInitialTitle(title);
+            setInitialDescription(description);
+            setInitialPrice(price);
+            setInitialStatus(status);
+            setInitialImages([...localImages]);
+
             setIsEditing(false); // Exit edit mode on save
         } catch (error) {
             console.error(error);
