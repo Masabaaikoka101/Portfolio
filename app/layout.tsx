@@ -62,7 +62,7 @@ const notoSansJP = Noto_Sans_JP({
  * - 型安全
  */
 export const metadata: Metadata = {
-  title: "AIフリマ出品アシスタント",
+  title: "Pigro - AIフリマ出品アシスタント",
   description: "AI駆動のフリマ出品支援ツール - 売れる文章と写真を一瞬で",
 };
 

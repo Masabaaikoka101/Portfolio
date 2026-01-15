@@ -182,7 +182,7 @@ export function SiteHeader() {
                             <DialogContent className="sm:max-w-lg">
                                 <DialogHeader>
                                     <DialogTitle className="text-xl font-bold">
-                                        AXELの使い方
+                                        Pigroの使い方
                                     </DialogTitle>
                                 </DialogHeader>
                                 {/* ステップ説明 */}
@@ -225,9 +225,9 @@ export function SiteHeader() {
                                             4
                                         </div>
                                         <div>
-                                            <h3 className="font-semibold text-gray-900">編集して保存</h3>
+                                            <h3 className="font-semibold text-gray-900">編集して更新</h3>
                                             <p className="text-sm text-gray-600">
-                                                内容を確認・編集してから保存できます
+                                                内容を確認・編集してから更新できます
                                             </p>
                                         </div>
                                     </div>
