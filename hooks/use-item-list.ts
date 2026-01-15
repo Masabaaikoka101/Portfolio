@@ -40,7 +40,7 @@ interface UseItemListReturn {
     loadMore: () => void;
 }
 
-const UNDO_TIMEOUT_MS = 5000;
+const UNDO_TIMEOUT_MS = 3000;
 
 /**
  * 商品リスト管理フック
@@ -149,7 +149,7 @@ export function useItemList(): UseItemListReturn {
             let query = supabase
                 .from("items")
                 .select("id, image_url, title, price, status, created_at, sort_order, is_processing")
-                .order("sort_order", { ascending: true, nullsFirst: false })
+                .order("sort_order", { ascending: true, nullsFirst: true })
                 .order("created_at", { ascending: false })
                 .range(from, to);
 
@@ -161,7 +161,7 @@ export function useItemList(): UseItemListReturn {
                 const fallbackQuery = supabase
                     .from("items")
                     .select("id, image_url, title, price, status, created_at, sort_order")
-                    .order("sort_order", { ascending: true, nullsFirst: false })
+                    .order("sort_order", { ascending: true, nullsFirst: true })
                     .order("created_at", { ascending: false })
                     .range(from, to);
 
