@@ -34,10 +34,6 @@ import { AnalyzeResponse, BatchItem } from "@/types";
  * - テスト時にコールバックをモック化しやすい
  */
 interface UseAiAnalysisProps {
-    /** 分析対象の画像ファイル */
-    selectedFile: File | null;
-    /** 商品の状態（プロンプトに使用） */
-    status: string;
     /** 背景タイプ */
     backgroundType: string;
     /** テキスト生成成功時のコールバック */
@@ -232,7 +228,7 @@ export function useAiAnalysis({
                         const task = queue.shift();
                         if (!task) break;
 
-                        const { file, index, loopIndex } = task;
+                        const { file, index } = task;
                         console.log(`[AiAnalysis] Worker ${workerId} starting index ${index} (file: ${file?.name})`);
 
                         if (!file) {

@@ -10,15 +10,12 @@ import {
     ArrowLeft,
     ChevronLeft,
     ChevronRight,
-    Pencil,
-    Check,
-    X
+    Pencil
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Item, ItemStatus } from "@/types";
 import { useItemNavigation } from "@/hooks/use-item-navigation";
 import { AiService } from "@/services/ai.service";
-import { ItemService } from "@/services/item.service";
 import { SYSTEM_TAG_PREFIX } from "@/lib/constants";
 import { useNavigationGuard } from "@/contexts/navigation-guard-context";
 
@@ -114,7 +111,7 @@ export default function ItemDetailPage() {
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [prevId, nextId, isEditing, handleNavigation]);
+    }, [prevId, nextId, isEditing, handleNavigation, goToItem]);
 
 
 
@@ -472,7 +469,7 @@ export default function ItemDetailPage() {
                             saveLabel="更新する"
                             onPriceChange={setPrice}
                             onStatusChange={setStatus}
-                            onSave={isEditing ? handleSave : undefined} // Show save button inside preview only in edit mode (optional, header has it too)
+
                             isSaving={saving}
                             onRegenerate={isEditing ? handleRegenerate : undefined}
                             isAnalyzing={item.is_processing} // Pass processing state to show skeleton

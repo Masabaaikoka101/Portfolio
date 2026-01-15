@@ -29,8 +29,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import Link from "next/link";
-import { Loader2, Eye, EyeOff, Check, X } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
 /**
  * フローティングラベル付き入力欄コンポーネント
@@ -382,7 +381,7 @@ export default function LoginPage() {
                             } catch (error) {
                                 const message = error instanceof Error ? error.message : "Google login failed";
                                 console.error("Google login error:", message);
-                                toast.error("Googleログインに失敗しました");
+                                toast.error("ログインに失敗しました");
                                 setLoading(false);
                             }
                         }}

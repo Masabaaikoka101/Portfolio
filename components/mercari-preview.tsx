@@ -33,6 +33,11 @@ import {
     verticalListSortingStrategy,
     rectSortingStrategy,
 } from "@dnd-kit/sortable";
+
+// テキストローディング（スケルトン）表示用
+const TextSkeleton = ({ className }: { className?: string }) => (
+    <div className={cn("animate-pulse bg-gray-300 rounded", className)} />
+);
 import { SortableImageItem } from "@/components/features/preview/sortable-image-item";
 
 
@@ -150,10 +155,7 @@ export function MercariPreview({
     // これにより、1枚の画像でも追加ボタンが表示され、ユーザーが画像を追加できる
     const showThumbnails = mode === "single" && images.length >= 1;
 
-    // テキストローディング（スケルトン）表示用
-    const TextSkeleton = ({ className }: { className?: string }) => (
-        <div className={cn("animate-pulse bg-gray-300 rounded", className)} />
-    );
+
 
     // キーボードナビゲーション
     useEffect(() => {
@@ -174,6 +176,7 @@ export function MercariPreview({
 
     // DnD用のローカルステート（画像インデックスの配列 = 並び順）
     // images配列の長さに合わせて初期値を設定（空配列だと初回レンダリングで何も表示されない問題を回避）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     const initialIndices = React.useMemo(() => images.map((_, i) => i), [images.length]);
     const [orderedIndices, setOrderedIndices] = useState<number[]>(initialIndices);
 
@@ -183,6 +186,7 @@ export function MercariPreview({
     useEffect(() => {
         // images配列の長さに合わせてインデックスを生成
         setOrderedIndices(images.map((_, i) => i));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [imagesKey]); // images内容の変更を検知
 
     // dnd-kit Sensors - 感度調整

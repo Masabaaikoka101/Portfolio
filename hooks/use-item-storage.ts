@@ -96,7 +96,7 @@ export function useItemStorage() {
 
             // 1.5 オリジナル画像のアップロード (指定がある場合)
             let uploadedOriginalUrl: string | undefined = undefined;
-            let uploadedOriginalOtherUrls: string[] = [];
+            const uploadedOriginalOtherUrls: string[] = [];
 
             if (originalImages && originalImages.length > 0) {
                 // メイン画像のオリジナル

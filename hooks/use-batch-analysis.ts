@@ -53,7 +53,7 @@ export function useBatchAnalysis(): UseBatchAnalysisResult {
                         throw new Error("背景除去に失敗しました");
                     }
                 } catch (e) {
-                    console.warn("背景除去失敗、元画像を使用します", e); // eslint-disable-next-line no-console
+                    console.warn("背景除去失敗、元画像を使用します", e);
                     // フォールバック: 元画像をbase64化
                     const reader = new FileReader();
                     processedImageBase64 = await new Promise((resolve) => {
@@ -124,7 +124,7 @@ export function useBatchAnalysis(): UseBatchAnalysisResult {
                 setProgress(((i + 1) / items.length) * 100);
             }
         } catch (error) {
-            console.error(error); // eslint-disable-next-line no-console
+            console.error(error);
             alert("処理中にエラーが発生しました: " + (error instanceof Error ? error.message : "不明なエラー"));
         } finally {
             setIsProcessing(false);

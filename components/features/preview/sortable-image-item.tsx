@@ -42,6 +42,7 @@ export function SortableImageItem({
     // 画像URLが変更されたらロード状態をリセット
     useEffect(() => {
         if (imageSrc !== prevImageSrcRef.current) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setImageLoaded(false);
             prevImageSrcRef.current = imageSrc;
         }

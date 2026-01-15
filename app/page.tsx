@@ -14,7 +14,6 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Reorder, useDragControls } from "framer-motion";
@@ -182,9 +181,6 @@ export default function HistoryPage() {
     const {
         selectedIds,
         handleItemClick: handleSelectionClick,
-        toggleSelection,
-        selectRange,
-        lastClickedIndex: lastSelectedIndex,
         toggleSelectAll,
         clearSelection,
         selectedCount,
@@ -304,23 +300,6 @@ export default function HistoryPage() {
         // ダウンロード後は選択モードを維持するか解除するか？
         // ユーザーガイドライン的には維持の方が親切かもしれないが、完了した感出すなら解除もあり。
         // ここでは維持する。
-    };
-
-    // 一括生成ハンドラ
-    const handleBatchGenerate = async () => {
-        if (selectedIds.size === 0 || selectedIds.size > 3) return;
-
-        // 選択されたIDからアイテム配列を生成
-        const targetItems = items.filter(item => selectedIds.has(item.id));
-
-        const successCount = await processBatch(targetItems);
-
-        if (successCount > 0) {
-            clearSelection();
-            setIsEditMode(false);
-            fetchItems(); // リスト更新
-            router.refresh(); // Server Component部分はリフレッシュ
-        }
     };
 
     // アイテム選択ハンドラ（クリック、Shift+クリック）

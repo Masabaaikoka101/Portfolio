@@ -146,7 +146,7 @@ export function useItemList(): UseItemListReturn {
 
         try {
             // まず is_processing を含むクエリを試行
-            let query = supabase
+            const query = supabase
                 .from("items")
                 .select("id, image_url, title, price, status, created_at, sort_order, is_processing")
                 .order("sort_order", { ascending: true, nullsFirst: true })

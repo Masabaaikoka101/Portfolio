@@ -13,7 +13,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Layers, Check, Settings2, Sparkles } from "lucide-react";
+import { Settings2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {

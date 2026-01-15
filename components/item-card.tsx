@@ -92,10 +92,9 @@ export function ItemCard({
     }, [imageUrl]);
 
     // 処理中が終わった直後で、画像がまだロードされていない場合はシマーを継続
-    const showShimmer = isProcessing || (!imageLoaded && !isProcessing && prevImageUrlRef.current === imageUrl && !imageLoaded);
     // 実際には: isProcessing中 または 画像変更後まだロードされていない場合
     // より簡潔に書くと:
-    const effectiveShowShimmer = isProcessing || !imageLoaded;
+    const showShimmer = isProcessing || !imageLoaded;
 
     /**
      * 日付フォーマット

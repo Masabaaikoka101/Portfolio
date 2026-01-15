@@ -30,7 +30,7 @@
 
 "use client";
 
-import { useEffect, Suspense, useRef, useState } from "react";
+import { useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useItemForm } from "@/hooks/use-item-form";
@@ -46,7 +46,6 @@ import {
 } from "@/components/features/home/WizardSteps";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
 
 /**
  * 認証チェック中のローディング画面
