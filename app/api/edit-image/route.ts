@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
                         { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
                         { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
 
-                    ] as any,
+                    ] as any, // eslint-disable-line @typescript-eslint/no-explicit-any
                 },
             });
         } else {

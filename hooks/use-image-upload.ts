@@ -158,6 +158,34 @@ export function useImageUpload() {
         setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
     }, []);
 
+    /**
+     * 画像を入れ替え
+     * @param index 入れ替える画像のインデックス
+     * @param file 新しい画像ファイル
+     */
+    const replaceImage = useCallback((index: number, file: File) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const newImage = e.target?.result as string;
+            setOriginalImages((prev) => {
+                const next = [...prev];
+                next[index] = newImage;
+                return next;
+            });
+            setProcessedImages((prev) => {
+                const next = [...prev];
+                next[index] = null; // 再処理が必要
+                return next;
+            });
+            setSelectedFiles((prev) => {
+                const next = [...prev];
+                next[index] = file;
+                return next;
+            });
+        };
+        reader.readAsDataURL(file);
+    }, []);
+
     return {
         // 状態
         originalImages,
@@ -173,5 +201,6 @@ export function useImageUpload() {
         moveImage,
         reorderImages,
         removeImage,
+        replaceImage,
     };
 }

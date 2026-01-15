@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { STATUS_OPTIONS } from "@/lib/constants";
 import { ItemStatus } from "@/types";
-import { Reorder, useDragControls } from "framer-motion";
+import { Reorder } from "framer-motion";
 import { GripVertical } from "lucide-react";
 
 /**

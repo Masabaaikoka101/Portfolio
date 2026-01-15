@@ -79,10 +79,10 @@ export function BackgroundSelectionStep({
                                 type="button"
                                 onClick={() => setBackgroundType(option.id)}
                                 className={cn(
-                                    "relative aspect-square rounded-xl overflow-hidden border-3 transition-all",
+                                    "relative aspect-square rounded-xl overflow-hidden border-2 transition-all",
                                     "group",
                                     backgroundType === option.id
-                                        ? "border-purple-500 ring-4 ring-purple-200 scale-105 z-10"
+                                        ? "border-blue-500 ring-4 ring-blue-100 scale-105 z-10 shadow-md"
                                         : "border-gray-200 hover:border-gray-300 hover:scale-102"
                                 )}
                             >
@@ -99,9 +99,9 @@ export function BackgroundSelectionStep({
                                     </div>
                                 )}
                                 {backgroundType === option.id && (
-                                    <div className="absolute inset-0 bg-purple-500/20 flex items-center justify-center">
-                                        <div className="w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center">
-                                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center shadow-sm animate-in zoom-in duration-200">
+                                            <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                             </svg>
                                         </div>
@@ -134,7 +134,7 @@ export function BackgroundSelectionStep({
                     </Button>
                     <Button
                         onClick={onStartAnalysis}
-                        className="flex-1 py-5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold"
+                        className="flex-1 py-5 bg-[#125DA7] hover:bg-[#0E4B8A] text-white font-bold shadow-md transition-all duration-200"
                     >
                         <Sparkles className="w-4 h-4 mr-2" />
                         AIで生成開始

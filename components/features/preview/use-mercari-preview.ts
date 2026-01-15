@@ -18,6 +18,8 @@ interface UseMercariPreviewReturn {
     handleDownload: (imageUrl: string, fileName: string) => Promise<void>;
     /** 全画像をZIPでダウンロード */
     handleDownloadAll: (imageUrls: string[], fileName: string) => Promise<void>;
+    /** 全画像を個別にダウンロード (スマホ向け) */
+    handleDownloadMultiple: (imageUrls: string[], fileName: string) => Promise<void>;
 }
 
 export function useMercariPreview(): UseMercariPreviewReturn {
@@ -74,10 +76,27 @@ export function useMercariPreview(): UseMercariPreviewReturn {
         }
     }, []);
 
+    const handleDownloadMultiple = useCallback(async (imageUrls: string[], baseFileName: string) => {
+        if (!imageUrls || imageUrls.length === 0) return;
+
+        // ブラウザの制限を回避するため、少し間隔を空けて順番にダウンロード
+        for (let i = 0; i < imageUrls.length; i++) {
+            const url = imageUrls[i];
+            if (!url) continue;
+
+            const fileName = `${baseFileName}_${i + 1}`;
+            await handleDownload(url, fileName);
+
+            // 500ms待機
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }, [handleDownload]);
+
     return {
         copiedField,
         handleCopy,
         handleDownload,
         handleDownloadAll,
+        handleDownloadMultiple,
     };
 }

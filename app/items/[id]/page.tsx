@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { MercariPreview } from "@/components/mercari-preview";
@@ -10,15 +10,12 @@ import {
     ArrowLeft,
     ChevronLeft,
     ChevronRight,
-    Pencil,
-    Check,
-    X
+    Pencil
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Item, ItemStatus } from "@/types";
 import { useItemNavigation } from "@/hooks/use-item-navigation";
 import { AiService } from "@/services/ai.service";
-import { ItemService } from "@/services/item.service";
 import { SYSTEM_TAG_PREFIX } from "@/lib/constants";
 import { useNavigationGuard } from "@/contexts/navigation-guard-context";
 
@@ -33,7 +30,7 @@ export default function ItemDetailPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [isEditing, setIsEditing] = useState(false); // New: Edit mode state
+    const [isEditing, setIsEditing] = useState(false); // デフォルトはプレビュー表示
 
     // Navigation Hook
     const { prevId, nextId } = useItemNavigation(itemId);
@@ -49,18 +46,41 @@ export default function ItemDetailPage() {
     const [localImages, setLocalImages] = useState<(string | null)[]>([]);
     const [processingStates, setProcessingStates] = useState<Record<number, boolean>>({});
 
+    // 初期値保持（Dirty Check用）
+    const [initialTitle, setInitialTitle] = useState("");
+    const [initialDescription, setInitialDescription] = useState("");
+    const [initialPrice, setInitialPrice] = useState(0);
+    const [initialStatus, setInitialStatus] = useState<ItemStatus | "">("");
+    const [initialImages, setInitialImages] = useState<string[]>([]);
+
+    // アップロード中かどうか（processingStatesに1つでもtrueがあればアップロード中）
+    const isUploading = Object.values(processingStates).some(Boolean);
+
     // Navigation Guard
     const { setNavigationGuard, confirmNavigation } = useNavigationGuard();
 
-    // Sync guard state with edit mode
-    useEffect(() => {
-        setNavigationGuard(isEditing);
-        return () => setNavigationGuard(false);
-    }, [isEditing, setNavigationGuard]);
+    // Dirty Check: 初期値と現在値を比較
+    const isDirty = React.useMemo(() => {
+        if (title !== initialTitle) return true;
+        if (description !== initialDescription) return true;
+        if (price !== initialPrice) return true;
+        if (status !== initialStatus) return true;
+        // 画像比較（URLのリストが変わったか）
+        const currentImgStr = localImages.filter(Boolean).join(',');
+        const initialImgStr = initialImages.join(',');
+        if (currentImgStr !== initialImgStr) return true;
+        return false;
+    }, [title, description, price, status, localImages, initialTitle, initialDescription, initialPrice, initialStatus, initialImages]);
 
-    // Dirty Check Logic: Confirm before leaving if editing
+    // Sync guard state with dirty state (not just isEditing)
+    useEffect(() => {
+        setNavigationGuard(isDirty);
+        return () => setNavigationGuard(false);
+    }, [isDirty, setNavigationGuard]);
+
+    // Dirty Check Logic: Confirm before leaving if there are unsaved changes
     const handleNavigation = useCallback((path: string | (() => void)) => {
-        if (isEditing) {
+        if (isDirty) {
             if (!confirmNavigation()) {
                 return;
             }
@@ -70,10 +90,10 @@ export default function ItemDetailPage() {
         } else {
             path();
         }
-    }, [isEditing, router, confirmNavigation]);
+    }, [isDirty, router, confirmNavigation]);
 
     // Intercept back button
-    const handleBack = () => handleNavigation("/history");
+    const handleBack = () => handleNavigation("/");
 
     // Intercept item traversal
     const goToItem = (id: string) => handleNavigation(`/items/${id}`);
@@ -91,7 +111,7 @@ export default function ItemDetailPage() {
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [prevId, nextId, isEditing, handleNavigation]);
+    }, [prevId, nextId, isEditing, handleNavigation, goToItem]);
 
 
 
@@ -102,7 +122,7 @@ export default function ItemDetailPage() {
             setLoading(true);
             setError(null);
             setSelectedIndex(0);
-            setIsEditing(false); // Reset edit mode on load
+            // isEditing はリセットしない（常に編集モード）
 
             const { data, error } = await supabase
                 .from("items")
@@ -118,13 +138,25 @@ export default function ItemDetailPage() {
             }
 
             setItem(data);
-            setTitle(data.title || "");
-            setDescription(data.description || "");
-            setPrice(data.price || 0);
-            setStatus(data.status || "");
+            const loadedTitle = data.title || "";
+            const loadedDesc = data.description || "";
+            const loadedPrice = data.price || 0;
+            const loadedStatus = data.status || "";
 
-            const initImages = [data.image_url, ...(data.other_images || [])].filter(Boolean);
+            setTitle(loadedTitle);
+            setDescription(loadedDesc);
+            setPrice(loadedPrice);
+            setStatus(loadedStatus);
+
+            // 初期値を保存（Dirty Check用）
+            setInitialTitle(loadedTitle);
+            setInitialDescription(loadedDesc);
+            setInitialPrice(loadedPrice);
+            setInitialStatus(loadedStatus);
+
+            const initImages = [data.image_url, ...(data.other_images || [])].filter((img): img is string => !!img);
             setLocalImages(initImages);
+            setInitialImages(initImages); // 初期値も保存
             setLoading(false);
         };
 
@@ -141,13 +173,24 @@ export default function ItemDetailPage() {
                 .update({
                     title, description, price, status,
                     image_url: localImages[0] || item.image_url,
-                    other_images: localImages.slice(1).filter((img): img is string => !!img),
+                    original_image_url: item.original_image_url, // Keep original image URL
+                    original_other_images: item.original_other_images || [], // Keep other original images
+                    // blob: URLは一時的なものなので保存対象から除外
+                    other_images: localImages.slice(1).filter((img): img is string => !!img && !img.startsWith('blob:')),
                 })
                 .eq("id", item.id);
 
             if (error) throw error;
 
             toast.success("更新しました！");
+
+            // 保存成功時に初期値を更新してDirty状態を解消
+            setInitialTitle(title);
+            setInitialDescription(description);
+            setInitialPrice(price);
+            setInitialStatus(status);
+            setInitialImages(localImages.filter((img): img is string => img !== null));
+
             setIsEditing(false); // Exit edit mode on save
         } catch (error) {
             console.error(error);
@@ -157,20 +200,7 @@ export default function ItemDetailPage() {
         }
     };
 
-    const handleCancelEdit = () => {
-        if (!window.confirm("編集内容を破棄して元の状態に戻しますか？")) return;
-        // Revert changes by re-fetching or using initial state logic if stored.
-        // For simplicity, we can just reset state from `item` object.
-        if (item) {
-            setTitle(item.title || "");
-            setDescription(item.description || "");
-            setPrice(item.price || 0);
-            setStatus(item.status || "");
-            const initImages = [item.image_url, ...(item.other_images || [])].filter(Boolean);
-            setLocalImages(initImages);
-        }
-        setIsEditing(false);
-    };
+
 
     const handleDeleteImage = (index: number) => {
         if (localImages.length <= 1) {
@@ -205,11 +235,18 @@ export default function ItemDetailPage() {
     };
 
     const handleAddImage = async (files: File[]) => {
-        if (!item || files.length === 0) return;
+        console.log("[Debug] handleAddImage called. Files:", files.length);
 
-        // Check for background tag
-        const bgTag = item.tags?.find(t => t.startsWith(SYSTEM_TAG_PREFIX));
+        if (!item || files.length === 0) {
+            console.warn("[Debug] No item or no files. Item:", !!item, "Files:", files.length);
+            return;
+        }
+
+        // Check for background tag (Safety check for array)
+        const tags = Array.isArray(item.tags) ? item.tags : [];
+        const bgTag = tags.find(t => t.startsWith(SYSTEM_TAG_PREFIX));
         const backgroundType = bgTag ? bgTag.replace(SYSTEM_TAG_PREFIX, "") : null;
+        console.log("[Debug] Background Type:", backgroundType);
 
         const startIndex = localImages.length;
         const newUrls = files.map(file => URL.createObjectURL(file));
@@ -226,25 +263,28 @@ export default function ItemDetailPage() {
             return next;
         });
 
-        const uploadImage = async (file: File, index: number) => {
+        const uploadImage = async (file: File, blobUrl: string, initialIndex: number) => {
             try {
+                console.log(`[Debug] uploadImage started for ${file.name}`);
                 let fileToUpload: File | Blob = file;
 
                 // 1. AI Background Processing (if setting exists)
                 if (backgroundType) {
                     try {
+                        console.log(`[Debug] Processing background: ${backgroundType} for ${file.name}`);
                         const result = await AiService.editImage(file, backgroundType);
                         if (result.success && result.imageUrl) {
+                            console.log("[Debug] AI processing success", result.imageUrl);
                             // Convert Data URL to Blob
                             const res = await fetch(result.imageUrl);
                             fileToUpload = await res.blob();
                         } else {
-                            console.warn("Background processing failed, using original.", result.error);
-                            toast.error(`背景処理に失敗しました: ${file.name}`);
+                            console.warn("[Debug] Background processing failed, using original.", result.error);
+                            toast.error(`背景処理に失敗しました: ${file.name} (オリジナルを使用します)`);
                         }
                     } catch (e) {
-                        console.error("AI Service Error:", e);
-                        toast.error(`AI処理中にエラーが発生しました`);
+                        console.error("[Debug] AI Service Error:", e);
+                        toast.error(`AI処理中にエラーが発生しました (オリジナルを使用します)`);
                     }
                 }
 
@@ -255,9 +295,81 @@ export default function ItemDetailPage() {
                 const userId = (item as any).user_id || "guest";
                 const filePath = `${userId}/${fileName}`;
 
+                console.log(`[Debug] Uploading to Supabase: ${filePath}`);
+
                 const { error: uploadError } = await supabase.storage
                     .from("item-images")
                     .upload(filePath, fileToUpload);
+
+                if (uploadError) {
+                    console.error("[Debug] Supabase upload error:", uploadError);
+                    throw uploadError;
+                }
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from("item-images")
+                    .getPublicUrl(filePath);
+
+                console.log(`[Debug] Upload success. Public URL: ${publicUrl}`);
+
+                // 3. Update state with real URL by matching the placeholder blob URL
+                // This prevents index mismatch if user deleted images during upload
+                setLocalImages(prev => prev.map(url => url === blobUrl ? publicUrl : url));
+
+            } catch (error) {
+                console.error("[Debug] Error uploading image:", error);
+                toast.error(`画像のアップロードに失敗しました: ${file.name}`);
+                // Optional: Remove the failed image from localImages?
+                // For now, keep it (it will remain as blob URL or broken) to let user retry or delete.
+            } finally {
+                setProcessingStates(prev => {
+                    const next = { ...prev };
+                    delete next[initialIndex];
+                    return next;
+                });
+            }
+        };
+
+        // Process all files in parallel
+        await Promise.all(files.map((file, i) => uploadImage(file, newUrls[i], startIndex + i)));
+    };
+
+    // ... (Loading/Error states)
+
+    const handleRegenerate = async () => {
+        if (!item?.original_image_url || selectedIndex !== 0) {
+            toast.error("メイン画像の再生成のみ可能です");
+            return;
+        }
+
+        setProcessingStates(prev => ({ ...prev, [selectedIndex]: true }));
+
+        try {
+            const originalUrl = item.original_image_url;
+
+            // 1. Fetch and process image
+            const response = await fetch(originalUrl);
+            if (!response.ok) throw new Error("Failed to fetch original image");
+            const blob = await response.blob();
+            const file = new File([blob], "original.png", { type: blob.type });
+
+            const bgTag = item?.tags?.find(t => t.startsWith(SYSTEM_TAG_PREFIX));
+            const backgroundType = bgTag ? bgTag.replace(SYSTEM_TAG_PREFIX, "") : "white";
+
+            const result = await AiService.editImage(file, backgroundType);
+
+            if (result.success && result.imageUrl) {
+                // 2. Upload processed image to Storage
+                const res = await fetch(result.imageUrl);
+                const processedBlob = await res.blob();
+
+                const fileName = `${Date.now()}_regenerated.png`;
+                const userId = item.user_id || "guest";
+                const filePath = `${userId}/${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from("item-images")
+                    .upload(filePath, processedBlob);
 
                 if (uploadError) throw uploadError;
 
@@ -265,33 +377,27 @@ export default function ItemDetailPage() {
                     .from("item-images")
                     .getPublicUrl(filePath);
 
-                // 3. Update state with real URL and clear loading
+                // 3. Update local state (Overwrite)
                 setLocalImages(prev => {
                     const next = [...prev];
-                    next[index] = publicUrl;
+                    next[selectedIndex] = publicUrl;
                     return next;
                 });
-            } catch (error) {
-                console.error("Error uploading image:", error);
-                toast.error(`画像のアップロードに失敗しました: ${file.name}`);
-                // Remove the failed image from view? Or keep original preview?
-                // Keeping original preview might be misleading if upload failed.
-                // For now, let's leave the preview (which corresponds to local file) but stop loading.
-                // Or maybe nullify it?
-            } finally {
-                setProcessingStates(prev => {
-                    const next = { ...prev };
-                    delete next[index];
-                    return next;
-                });
+                toast.success("再生成しました。保存して確定してください。");
+            } else {
+                throw new Error(result.error || "Generation failed");
             }
-        };
-
-        // Process all files in parallel
-        await Promise.all(files.map((file, i) => uploadImage(file, startIndex + i)));
+        } catch (error) {
+            console.error("Regeneration error:", error);
+            toast.error("再生成に失敗しました");
+        } finally {
+            setProcessingStates(prev => {
+                const next = { ...prev };
+                delete next[selectedIndex];
+                return next;
+            });
+        }
     };
-
-    // ... (Loading/Error states)
 
     if (loading) return <main className="min-h-screen bg-gray-50 flex items-center justify-center"><Loader2 className="h-8 w-8 text-gray-400 animate-spin" /></main>;
     if (error) return <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4"><div className="text-center max-w-md"><h2 className="text-2xl font-bold text-gray-900 mb-4">エラーが発生しました</h2><p className="text-gray-600 mb-8">{error}</p><Button onClick={() => router.push("/history")}>一覧に戻る</Button></div></main>;
@@ -308,12 +414,12 @@ export default function ItemDetailPage() {
                             <ArrowLeft className="h-5 w-5" />
                         </Button>
                         <h1 className="text-xl font-bold text-gray-900">
-                            {isEditing ? "商品を編集" : "作成一覧"}
+                            {isEditing ? "商品を編集" : "商品詳細"}
                         </h1>
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {!isEditing ? (
+                        {!isEditing && (
                             <>
                                 {/* PC Nav (Read Mode) */}
                                 <div className="hidden md:flex gap-2 mr-4">
@@ -329,16 +435,8 @@ export default function ItemDetailPage() {
                                     編集する
                                 </Button>
                             </>
-                        ) : (
-                            <div className="flex gap-2">
-                                <Button variant="ghost" onClick={handleCancelEdit}>
-                                    キャンセル
-                                </Button>
-                                <Button onClick={handleSave} disabled={saving} className="bg-red-600 hover:bg-red-700 text-white min-w-[100px]">
-                                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "保存する"}
-                                </Button>
-                            </div>
                         )}
+                        {/* 編集モード中は「更新」ボタンで保存＆終了（MercariPreview内に配置） */}
                     </div>
                 </div>
 
@@ -347,8 +445,12 @@ export default function ItemDetailPage() {
                     <div className="w-full">
                         <MercariPreview
                             image={item.image_url}
+                            originalImage={item.original_image_url} // Persist original image
                             images={localImages}
-                            originalImages={localImages.filter((img): img is string => !!img)}
+                            originalImages={[
+                                item.original_image_url,
+                                ...(item.original_other_images || [])
+                            ]}
                             selectedIndex={selectedIndex}
                             onImageSelect={setSelectedIndex}
                             loadingStates={localImages.map((_, i) => !!processingStates[i])}
@@ -359,14 +461,18 @@ export default function ItemDetailPage() {
                             description={description}
                             price={price}
                             status={status || undefined}
+
                             editable={isEditing} // Toggle edit mode
                             onTitleChange={setTitle}
                             onDescriptionChange={setDescription}
+                            onSave={isEditing ? handleSave : undefined}
+                            saveLabel="更新する"
                             onPriceChange={setPrice}
                             onStatusChange={setStatus}
-                            onSave={isEditing ? handleSave : undefined} // Show save button inside preview only in edit mode (optional, header has it too)
+
                             isSaving={saving}
-                        // onEditImage={isEditing ? ... : undefined} // Future: Allow image editing tool only in edit mode
+                            onRegenerate={isEditing ? handleRegenerate : undefined}
+                            isAnalyzing={item.is_processing} // Pass processing state to show skeleton
                         />
                     </div>
                 </div>

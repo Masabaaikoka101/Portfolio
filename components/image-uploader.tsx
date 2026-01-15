@@ -2,30 +2,17 @@
  * 画像アップローダーコンポーネント
  *
  * このコンポーネントの役割:
- * - ドラッグ＆ドロップまたはクリックで画像をアップロード
+ * - カメラ撮影またはアルバムから画像をアップロード
+ * - ドラッグ＆ドロップでの画像アップロード
  * - 選択した画像のプレビュー表示
  * - 画像のクリア機能
- *
- * Why コンポーネントとして分離するのか:
- * - 画像アップロードUIは再利用性が高い
- * - ドラッグ＆ドロップのロジックをカプセル化
- * - EmptyState等、複数の場所から呼び出し可能
- *
- * 設計パターン:
- * - Controlled Component風: onImageSelect で親に通知
- * - 内部状態（preview）は表示のみに使用
- *
- * Learning:
- * - Drag and Drop API: https://developer.mozilla.org/ja/docs/Web/API/HTML_Drag_and_Drop_API
- * - FileReader API: https://developer.mozilla.org/ja/docs/Web/API/FileReader
- * - next/image: https://nextjs.org/docs/app/api-reference/components/image
  */
 
 "use client";
 
 import { useState, useRef } from "react";
 import Image from "next/image";
-import { Upload, X } from "lucide-react";
+import { Camera, ImageIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -39,20 +26,21 @@ interface ImageUploaderProps {
     onFilesSelect: (files: File[]) => void;
     /** 追加のCSSクラス */
     className?: string;
-    /** 最大アップロード枚数 (デフォルト: 3) */
+    /** 最大アップロード枚数 (デフォルト: 5) */
     maxFiles?: number;
 }
 
 /**
  * 画像アップローダーコンポーネント
  */
-export function ImageUploader({ onFilesSelect, className, maxFiles = 3 }: ImageUploaderProps) {
+export function ImageUploader({ onFilesSelect, className, maxFiles = 5 }: ImageUploaderProps) {
     /** プレビュー画像リスト */
     const [previews, setPreviews] = useState<string[]>([]);
     /** ドラッグ中フラグ */
     const [isDragging, setIsDragging] = useState(false);
 
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
+    const albumInputRef = useRef<HTMLInputElement>(null);
 
     /**
      * ファイル処理
@@ -64,9 +52,6 @@ export function ImageUploader({ onFilesSelect, className, maxFiles = 3 }: ImageU
         // 枚数制限チェック
         if (imageFiles.length > maxFiles) {
             toast.error(`${maxFiles}枚までしかアップロードできません`);
-            // 制限枚数まで切り詰める場合は以下を有効化、今回はエラー通知のみで処理を中断するか、切り詰めて続行するか。
-            // ユーザー要望は「5枚までしかアップロードできませんという表記をつけて」なので、エラーを出して処理しない、あるいは切り詰める。
-            // ここではエラーを表示し、最大枚数まで切り詰めて処理する親切設計にする。
         }
 
         const validFiles = imageFiles.slice(0, maxFiles);
@@ -107,8 +92,12 @@ export function ImageUploader({ onFilesSelect, className, maxFiles = 3 }: ImageU
         }
     };
 
-    const onClickUpload = () => {
-        fileInputRef.current?.click();
+    const onCameraClick = () => {
+        cameraInputRef.current?.click();
+    };
+
+    const onAlbumClick = () => {
+        albumInputRef.current?.click();
     };
 
     const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -120,8 +109,11 @@ export function ImageUploader({ onFilesSelect, className, maxFiles = 3 }: ImageU
     const clearImages = (e: React.MouseEvent) => {
         e.stopPropagation();
         setPreviews([]);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
+        if (cameraInputRef.current) {
+            cameraInputRef.current.value = "";
+        }
+        if (albumInputRef.current) {
+            albumInputRef.current.value = "";
         }
     };
 
@@ -136,12 +128,20 @@ export function ImageUploader({ onFilesSelect, className, maxFiles = 3 }: ImageU
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
-            onClick={previews.length === 0 ? onClickUpload : undefined}
         >
-            {/* 隠しファイル入力 */}
+            {/* 隠しファイル入力（カメラ用） */}
             <input
                 type="file"
-                ref={fileInputRef}
+                ref={cameraInputRef}
+                onChange={onFileChange}
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+            />
+            {/* 隠しファイル入力（アルバム用・複数選択可） */}
+            <input
+                type="file"
+                ref={albumInputRef}
                 onChange={onFileChange}
                 accept="image/*"
                 className="hidden"
@@ -157,7 +157,6 @@ export function ImageUploader({ onFilesSelect, className, maxFiles = 3 }: ImageU
                                 "relative aspect-square w-full rounded-md overflow-hidden bg-gray-100",
                                 previews.length === 1 && "col-span-2 row-span-2 aspect-auto h-64 md:h-80",
                                 previews.length === 3 && index === 0 && "col-span-2",
-                                // 4枚以上の場合はシンプルにグリッド表示
                                 previews.length >= 4 && "col-span-1 row-span-1"
                             )}>
                                 <Image
@@ -180,16 +179,34 @@ export function ImageUploader({ onFilesSelect, className, maxFiles = 3 }: ImageU
                     </Button>
                 </div>
             ) : (
-                // アップロード待ち状態
-                <div className="flex flex-col items-center justify-center py-10 md:py-16 text-center cursor-pointer">
-                    <div className="mb-4 rounded-full bg-gray-100 p-4 transition-colors group-hover:bg-gray-200">
-                        <Upload className="h-8 w-8 text-gray-500" />
-                    </div>
-                    <h3 className="mb-1 text-lg font-semibold text-gray-900">
+                // アップロード待ち状態（カメラ/アルバム2ボタン）
+                <div className="flex flex-col items-center justify-center py-8 md:py-12 text-center">
+                    <h3 className="mb-4 text-lg font-semibold text-gray-900">
                         写真をアップロード
                     </h3>
+
+                    {/* カメラ/アルバムボタン */}
+                    <div className="flex gap-4 mb-4">
+                        <button
+                            type="button"
+                            onClick={onCameraClick}
+                            className="flex flex-col items-center justify-center w-28 h-24 rounded-xl border-2 border-gray-200 bg-white hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 group"
+                        >
+                            <Camera className="w-8 h-8 text-gray-500 group-hover:text-blue-600 mb-1" />
+                            <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700">カメラ</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onAlbumClick}
+                            className="flex flex-col items-center justify-center w-28 h-24 rounded-xl border-2 border-gray-200 bg-white hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 group"
+                        >
+                            <ImageIcon className="w-8 h-8 text-gray-500 group-hover:text-blue-600 mb-1" />
+                            <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700">アルバム</span>
+                        </button>
+                    </div>
+
                     <p className="text-sm text-gray-500">
-                        ここにドラッグ＆ドロップ、またはクリックして選択
+                        またはここにドラッグ＆ドロップ
                     </p>
                     <p className="mt-2 text-xs text-gray-400">
                         最大{maxFiles}枚まで (PNG, JPG, WEBP)

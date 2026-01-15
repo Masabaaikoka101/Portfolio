@@ -45,12 +45,21 @@ export function ComparisonSlider({
     return (
         <div
             className={cn(
-                "relative w-full aspect-[4/3] select-none overflow-hidden rounded-xl border border-gray-200 shadow-sm bg-white",
+                "relative w-full aspect-[4/3] select-none overflow-hidden rounded-xl border border-gray-200 shadow-sm bg-white cursor-pointer",
                 className
             )}
+            onMouseDown={() => setShowBefore(true)}
+            onMouseUp={() => setShowBefore(false)}
+            onMouseLeave={() => setShowBefore(false)}
+            onTouchStart={(e) => {
+                e.preventDefault(); // スクロールを防止
+                setShowBefore(true);
+            }}
+            onTouchEnd={() => setShowBefore(false)}
+            onTouchCancel={() => setShowBefore(false)}
         >
             {/* 画像表示 */}
-            <div className="absolute inset-0 h-full w-full">
+            <div className="absolute inset-0 h-full w-full pointer-events-none">
                 <Image
                     src={showBefore ? imageBefore : imageAfter}
                     alt={showBefore ? "Before" : "After"}
@@ -63,7 +72,7 @@ export function ComparisonSlider({
 
             {/* ラベル */}
             <div className={cn(
-                "absolute top-4 right-4 px-2 py-1 text-xs rounded-md backdrop-blur-sm",
+                "absolute top-4 right-4 px-2 py-1 text-xs rounded-md backdrop-blur-sm pointer-events-none",
                 showBefore
                     ? "bg-gray-600/70 text-white"
                     : "bg-blue-600/80 text-white"
@@ -71,23 +80,16 @@ export function ComparisonSlider({
                 {showBefore ? "Before（元画像）" : "After（AI加工後）"}
             </div>
 
-            {/* Before表示ボタン */}
-            <button
-                type="button"
-                onMouseDown={() => setShowBefore(true)}
-                onMouseUp={() => setShowBefore(false)}
-                onMouseLeave={() => setShowBefore(false)}
-                onTouchStart={() => setShowBefore(true)}
-                onTouchEnd={() => setShowBefore(false)}
+            {/* ヒントラベル（ボタンではなく情報表示のみ） */}
+            <div
                 className={cn(
-                    "absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full text-xs font-medium transition-all shadow-md backdrop-blur-sm",
+                    "absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full text-xs font-medium shadow-md backdrop-blur-sm pointer-events-none",
                     "bg-white/80 text-gray-600",
-                    "hover:bg-white active:bg-gray-100",
                     "border border-gray-200"
                 )}
             >
                 長押しでBefore
-            </button>
+            </div>
         </div>
     );
 }

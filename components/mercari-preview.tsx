@@ -1,5 +1,5 @@
-import { Camera, Copy, Check, Download, Edit2, Sparkles, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
-import React, { useEffect, useRef } from "react";
+import { Camera, Copy, Check, Download, Edit2, Sparkles, ChevronLeft, ChevronRight, Plus, X, ChevronDown, ImageIcon } from "lucide-react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,10 +8,37 @@ import { ComparisonSlider } from "@/components/comparison-slider";
 import { Label } from "@/components/ui/label";
 import { useMercariPreview } from "@/components/features/preview/use-mercari-preview";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { ItemStatus } from "@/types";
 import { STATUS_OPTIONS } from "@/lib/constants";
 import Image from "next/image";
-import { Reorder } from "framer-motion";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    rectSortingStrategy,
+} from "@dnd-kit/sortable";
+
+// テキストローディング（スケルトン）表示用
+const TextSkeleton = ({ className }: { className?: string }) => (
+    <div className={cn("animate-pulse bg-gray-300 rounded", className)} />
+);
+import { SortableImageItem } from "@/components/features/preview/sortable-image-item";
 
 
 /**
@@ -26,7 +53,7 @@ interface MercariPreviewProps {
     /** 処理済み画像リスト（表示優先） */
     images?: (string | null)[];
     /** オリジナル画像リスト */
-    originalImages?: string[];
+    originalImages?: (string | null | undefined)[];
     /** 各画像の処理中ステータス */
     loadingStates?: boolean[];
     /** テキスト分析中フラグ */
@@ -59,6 +86,8 @@ interface MercariPreviewProps {
     onPriceChange?: (value: number) => void;
     onStatusChange?: (value: ItemStatus) => void;
     onEditImage?: () => void;
+    onRegenerate?: () => void;
+    saveLabel?: string;
 }
 
 /**
@@ -70,7 +99,7 @@ export function MercariPreview({
     images: propImages,
     originalImages: propOriginalImages,
     loadingStates,
-    isAnalyzing = false,
+    isAnalyzing: propIsAnalyzing = false,
     selectedIndex = 0,
     onImageSelect,
     mode = "single",
@@ -90,10 +119,17 @@ export function MercariPreview({
     onReorder,
     onAddImage,
     onDeleteImage,
+    onRegenerate,
+    saveLabel,
 }: MercariPreviewProps) {
 
-    const { copiedField, handleCopy, handleDownload } = useMercariPreview();
+    const { copiedField, handleCopy, handleDownload, handleDownloadMultiple } = useMercariPreview();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
+    const [showAddMenu, setShowAddMenu] = React.useState(false);
+
+    // "生成中..." のタイトルも分析中として扱う（DBカラム欠損時のフォールバック）
+    const isAnalyzing = propIsAnalyzing || title === "生成中...";
 
     // 互換性対応: 配列がない場合は単体propを使用
     const images = React.useMemo(() =>
@@ -114,15 +150,12 @@ export function MercariPreview({
     // ローディング状態: 指定があればそれ、なければ analyze中なら全体的に... (画像個別のloadingStatesがあればそちら優先)
     const isImageLoading = loadingStates?.[selectedIndex] ?? (isAnalyzing || false);
 
-    // スロット表示が必要か（複数画像がある場合 かつ 単体モード）
-    // バッチモードの場合は、個別の商品として扱うためサムネイルリストは非表示にする
-    // 修正: 画像追加機能がある場合は、1枚でも追加ボタンを表示するためにリストを表示する
-    const showThumbnails = mode === "single" && (originalImages.length > 1 || !!onAddImage);
+    // スロット表示が必要か
+    // 画像が1枚以上あれば常にスロットエリアを表示（単体モードの場合）
+    // これにより、1枚の画像でも追加ボタンが表示され、ユーザーが画像を追加できる
+    const showThumbnails = mode === "single" && images.length >= 1;
 
-    // テキストローディング（スケルトン）表示用
-    const TextSkeleton = ({ className }: { className?: string }) => (
-        <div className={cn("animate-pulse bg-gray-300 rounded", className)} />
-    );
+
 
     // キーボードナビゲーション
     useEffect(() => {
@@ -141,14 +174,52 @@ export function MercariPreview({
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [selectedIndex, images.length, onImageSelect]);
 
-    // DnD用のローカルステート（インデックスの配列）
-    const [orderedIndices, setOrderedIndices] = React.useState<number[]>([]);
+    // DnD用のローカルステート（画像インデックスの配列 = 並び順）
+    // images配列の長さに合わせて初期値を設定（空配列だと初回レンダリングで何も表示されない問題を回避）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const initialIndices = React.useMemo(() => images.map((_, i) => i), [images.length]);
+    const [orderedIndices, setOrderedIndices] = useState<number[]>(initialIndices);
 
-    // propsのoriginalImagesが変更されたら、インデックスをリセット
+    // propsのimagesが変更されたら、インデックスをリセット
+    // Note: 親から並び替え済みの配列が渡されるため、内容変更時にリセットが必要
+    const imagesKey = images.join(','); // 画像URLを結合してキーを作成
     useEffect(() => {
-        // console.log("MercariPreview: originalImages changed, resetting orderedIndices", originalImages);
-        setOrderedIndices(originalImages.map((_, i) => i));
-    }, [originalImages]);
+        // images配列の長さに合わせてインデックスを生成
+        setOrderedIndices(images.map((_, i) => i));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [imagesKey]); // images内容の変更を検知
+
+    // dnd-kit Sensors - 感度調整
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 5, // 5px動かないとドラッグ開始しない（小さいほど敏感）
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    // ドラッグ終了ハンドラ
+    const handleDragEnd = useCallback((event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const oldIndex = orderedIndices.indexOf(Number(active.id));
+        const newIndex = orderedIndices.indexOf(Number(over.id));
+
+        if (oldIndex === -1 || newIndex === -1) return;
+
+        const newOrder = arrayMove(orderedIndices, oldIndex, newIndex);
+        setOrderedIndices(newOrder);
+
+        // 親コンポーネントに通知
+        onReorder?.(newOrder);
+    }, [orderedIndices, onReorder]);
+
+    // SortableContext用のID配列 (文字列)
+    const sortableIds = orderedIndices.map(idx => String(idx));
 
     return (
         <div
@@ -166,16 +237,64 @@ export function MercariPreview({
                             {mode === "batch" ? "出品アイテム (選択中)" : "商品画像"}
                         </Label>
                         <div className="flex gap-2">
-                            {displayImage && (
+                            {/* 再生成ボタン */}
+                            {onRegenerate && currentOriginal && (
                                 <Button
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
-                                    className="h-7 px-2 text-gray-500 hover:text-blue-600"
-                                    onClick={() => handleDownload(displayImage, title)}
+                                    className="h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                                    onClick={onRegenerate}
+                                    disabled={isImageLoading}
                                 >
-                                    <Download className="h-4 w-4 mr-1" />
-                                    <span className="text-xs">DL</span>
+                                    <Sparkles className="h-4 w-4 mr-1" />
+                                    <span className="text-xs">AI再生成</span>
                                 </Button>
+                            )}
+
+                            {displayImage && (
+                                (() => {
+                                    // ダウンロード対象の画像を特定（処理済み優先、なければオリジナル）
+                                    const downloadTargets = images.map((img, i) => img ?? originalImages[i]).filter((img): img is string => !!img);
+                                    const hasMultipleImages = downloadTargets.length > 1;
+
+                                    if (hasMultipleImages) {
+                                        return (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-7 px-2 text-gray-500 hover:text-blue-600 gap-1"
+                                                    >
+                                                        <Download className="h-4 w-4" />
+                                                        <span className="text-xs">保存</span>
+                                                        <ChevronDown className="h-3 w-3 opacity-50" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => handleDownload(displayImage, title)}>
+                                                        表示画像を保存
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleDownloadMultiple(downloadTargets, title)}>
+                                                        まとめて保存
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        );
+                                    } else {
+                                        return (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-7 px-2 text-gray-500 hover:text-blue-600 gap-1"
+                                                onClick={() => handleDownload(displayImage, title)}
+                                            >
+                                                <Download className="h-4 w-4" />
+                                                <span className="text-xs">保存</span>
+                                            </Button>
+                                        );
+                                    }
+                                })()
                             )}
                         </div>
                     </div>
@@ -185,103 +304,123 @@ export function MercariPreview({
                         {/* サムネイルリスト (Mobile:上 / Desktop:左) */}
                         {/* Batchモードでも表示するように条件を変更 */}
                         {(showThumbnails || mode === "batch") && (
-                            <div className="order-1 flex flex-col gap-2 w-full md:w-20 md:shrink-0">
-                                <Reorder.Group
-                                    axis="y"
-                                    values={orderedIndices}
-                                    onReorder={setOrderedIndices}
-                                    className="grid grid-cols-4 md:grid-cols-1 gap-2"
+                            <div className="order-1 w-full md:w-20 md:shrink-0">
+                                <DndContext
+                                    sensors={sensors}
+                                    collisionDetection={closestCenter}
+                                    onDragEnd={handleDragEnd}
                                 >
-                                    {orderedIndices.map((originalIndex) => {
-                                        // console.log("Rendering slot:", { originalIndex, selectedIndex, isActive: originalIndex === selectedIndex });
-                                        const orig = originalImages[originalIndex];
-                                        const processed = images[originalIndex];
-                                        const isThisLoading = loadingStates?.[originalIndex] ?? false;
-                                        const thumbSrc = processed ?? orig;
-                                        const isActive = originalIndex === selectedIndex;
+                                    <SortableContext
+                                        items={sortableIds}
+                                        strategy={verticalListSortingStrategy}
+                                    >
+                                        <div className="flex flex-wrap gap-2 w-full md:flex-col md:flex-nowrap">
+                                            {orderedIndices.map((originalIndex, displayIndex) => {
+                                                const orig = originalImages[originalIndex];
+                                                const processed = images[originalIndex];
+                                                const isThisLoading = loadingStates?.[originalIndex] ?? false;
+                                                const thumbSrc = processed ?? orig;
+                                                const isActive = originalIndex === selectedIndex;
 
-                                        // keyには一意なURLを使用し、リレンダリング時にコンポーネントが破棄されないようにする
-                                        // (インデックスをkeyにすると、並び替えでコンポーネントの中身が入れ替わる扱いになり、アニメーションが壊れる)
-                                        const itemKey = thumbSrc || `index-${originalIndex}`;
+                                                return (
+                                                    <SortableImageItem
+                                                        key={String(originalIndex)}
+                                                        id={String(originalIndex)}
+                                                        index={originalIndex}
+                                                        imageSrc={thumbSrc}
+                                                        isActive={isActive}
+                                                        isLoading={isThisLoading}
+                                                        isMain={displayIndex === 0}
+                                                        canDelete={!!onDeleteImage && images.length > 1}
+                                                        canDrag={!!onReorder}
+                                                        onClick={() => onImageSelect?.(originalIndex)}
+                                                        onDelete={() => onDeleteImage?.(originalIndex)}
+                                                    />
+                                                );
+                                            })}
 
-                                        return (
-                                            <Reorder.Item
-                                                key={itemKey}
-                                                value={originalIndex}
-                                                // ドラッグ可能かどうかは onReorder があるかどうかで判定 (Read-Only時は無効)
-                                                drag={!!onReorder}
-                                                onDragEnd={() => onReorder?.(orderedIndices)}
-                                                className="relative w-full aspect-square"
-                                            >
-                                                <div
-                                                    onClick={() => onImageSelect?.(originalIndex)}
-                                                    className={cn(
-                                                        "relative w-full h-full rounded-md overflow-hidden border-2 transition-all cursor-pointer group",
-                                                        isActive ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-200 hover:border-gray-300"
-                                                    )}
-                                                >
-                                                    {thumbSrc && (
-                                                        <Image
-                                                            src={thumbSrc}
-                                                            alt={`Slot ${originalIndex}`}
-                                                            fill
-                                                            className="object-cover pointer-events-none" // pointer-events-none for drag handle
-                                                            unoptimized
-                                                        />
-                                                    )}
-                                                    {isThisLoading && (
-                                                        <div className="absolute inset-0 bg-white/60 animate-pulse flex items-center justify-center">
-                                                            <span className="text-xs text-white font-medium drop-shadow-md">生成中</span>
-                                                        </div>
-                                                    )}
+                                            {/* 画像追加ボタン（プラス + ポップアップメニュー） */}
+                                            {onAddImage && images.length < 5 && (
+                                                <div className="relative w-[calc(25%-6px)] md:w-full aspect-square">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowAddMenu(!showAddMenu)}
+                                                        className="flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-blue-400 transition-colors"
+                                                    >
+                                                        <Plus className="h-6 w-6 text-gray-400 mb-1" />
+                                                        <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap">追加</span>
+                                                    </button>
 
-                                                    {/* 削除ボタン */}
-                                                    {onDeleteImage && images.length > 1 && (
-                                                        <button
-                                                            className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                // オリジナルインデックスを削除
-                                                                onDeleteImage(originalIndex);
-                                                            }}
-                                                            title="画像を削除"
-                                                        >
-                                                            <X className="w-3 h-3" />
-                                                        </button>
+                                                    {/* 隠しInput（カメラ用） */}
+                                                    <input
+                                                        type="file"
+                                                        ref={cameraInputRef}
+                                                        className="hidden"
+                                                        accept="image/*"
+                                                        capture="environment"
+                                                        onChange={(e) => {
+                                                            if (e.target.files && e.target.files.length > 0) {
+                                                                onAddImage(Array.from(e.target.files));
+                                                                e.target.value = "";
+                                                            }
+                                                        }}
+                                                    />
+                                                    {/* 隠しInput（アルバム用） */}
+                                                    <input
+                                                        type="file"
+                                                        ref={fileInputRef}
+                                                        className="hidden"
+                                                        multiple
+                                                        accept="image/*"
+                                                        onChange={(e) => {
+                                                            if (e.target.files && e.target.files.length > 0) {
+                                                                onAddImage(Array.from(e.target.files));
+                                                                e.target.value = "";
+                                                            }
+                                                        }}
+                                                    />
+
+                                                    {/* ポップアップメニュー */}
+                                                    {showAddMenu && (
+                                                        <>
+                                                            {/* 背景オーバーレイ */}
+                                                            <div
+                                                                className="fixed inset-0 z-40"
+                                                                onClick={() => setShowAddMenu(false)}
+                                                            />
+                                                            {/* メニュー */}
+                                                            <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 z-50 min-w-[140px] overflow-hidden">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setShowAddMenu(false);
+                                                                        cameraInputRef.current?.click();
+                                                                    }}
+                                                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                                                >
+                                                                    <Camera className="w-4 h-4" />
+                                                                    カメラ
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setShowAddMenu(false);
+                                                                        fileInputRef.current?.click();
+                                                                    }}
+                                                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100"
+                                                                >
+                                                                    <ImageIcon className="w-4 h-4" />
+                                                                    アルバム
+                                                                </button>
+                                                            </div>
+                                                        </>
                                                     )}
+                                                    <span className="sr-only">画像を最大5枚まで追加可能</span>
                                                 </div>
-                                            </Reorder.Item>
-                                        );
-                                    })}
-                                </Reorder.Group>
-
-                                {/* 画像追加ボタン (最大5枚まで) */}
-                                {onAddImage && (
-                                    images.length < 5 ? (
-                                        <div className="flex flex-col gap-1 w-1/4 md:w-full">
-                                            <div className="w-full aspect-square border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 hover:border-gray-400 transition-colors"
-                                                onClick={() => fileInputRef.current?.click()}
-                                            >
-                                                <Plus className="h-6 w-6 text-gray-400 mb-1" />
-                                                <span className="text-[10px] text-gray-400 font-medium">追加</span>
-                                                <input
-                                                    type="file"
-                                                    ref={fileInputRef}
-                                                    className="hidden"
-                                                    multiple
-                                                    accept="image/*"
-                                                    onChange={(e) => {
-                                                        if (e.target.files && e.target.files.length > 0) {
-                                                            onAddImage(Array.from(e.target.files));
-                                                            e.target.value = "";
-                                                        }
-                                                    }}
-                                                />
-                                            </div>
-                                            <span className="text-[10px] text-gray-400 text-center">合計5枚まで</span>
+                                            )}
                                         </div>
-                                    ) : null
-                                )}
+                                    </SortableContext>
+                                </DndContext>
                             </div>
                         )}
 
@@ -382,7 +521,7 @@ export function MercariPreview({
                                     <Input
                                         value={title}
                                         onChange={(e) => onTitleChange?.(e.target.value)}
-                                        className="text-lg font-bold border-gray-300 focus:border-blue-500 pr-10"
+                                        className="text-lg font-bold border-gray-300 focus:border-blue-500 pr-12"
                                         placeholder="商品名を入力"
                                         maxLength={40}
                                     />
@@ -398,7 +537,7 @@ export function MercariPreview({
                                 </>
                             ) : (
                                 <div className="flex items-center justify-between gap-2">
-                                    <h2 className="text-lg lg:text-xl font-bold text-gray-900 leading-tight">
+                                    <h2 className="text-lg lg:text-xl font-bold text-gray-900 leading-tight pr-10">
                                         {title || "商品名がここに入ります"}
                                     </h2>
                                     <Button
@@ -461,7 +600,7 @@ export function MercariPreview({
                                             type="number"
                                             value={price}
                                             onChange={(e) => onPriceChange?.(parseInt(e.target.value) || 0)}
-                                            className="text-2xl font-bold text-gray-900 w-40 border-gray-300 focus:border-blue-500 pr-10"
+                                            className="text-2xl font-bold text-gray-900 w-40 border-gray-300 focus:border-blue-500 pr-12"
                                             min={0}
                                         />
                                         <Button
@@ -514,7 +653,7 @@ export function MercariPreview({
                                     <Textarea
                                         value={description}
                                         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onDescriptionChange?.(e.target.value)}
-                                        className="w-full min-h-[400px] text-sm border-gray-300 focus:border-blue-500 resize-y p-3 pr-10 leading-relaxed"
+                                        className="w-full min-h-[400px] text-sm border-gray-300 focus:border-blue-500 resize-y p-3 pr-12 leading-relaxed"
                                         placeholder="商品説明を入力"
                                     />
                                     <Button
@@ -529,13 +668,13 @@ export function MercariPreview({
                                 </>
                             ) : (
                                 <div className="relative group">
-                                    <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed p-4 bg-gray-50 rounded border border-gray-100 min-h-[200px]">
+                                    <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed p-4 pr-12 bg-gray-50 rounded border border-gray-100 min-h-[200px]">
                                         {description || "ここにAI生成された商品説明文が表示されます。"}
                                     </div>
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="absolute right-2 top-2 h-8 w-8 text-gray-400 hover:text-blue-600 bg-white/80 border shadow-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                                        className="absolute right-2 top-2 h-8 w-8 text-gray-400 hover:text-blue-600 bg-white/80 border shadow-sm rounded-md transition-colors"
                                         onClick={() => handleCopy(description, "description")}
                                         title="商品説明をコピー"
                                     >
@@ -554,7 +693,7 @@ export function MercariPreview({
                                 onClick={onSave}
                                 disabled={isSaving || isAnalyzing}
                             >
-                                {isSaving ? "保存中..." : isAnalyzing ? "AI分析中..." : "保存する"}
+                                {isSaving ? "処理中..." : isAnalyzing ? "AI分析中..." : (saveLabel || "更新する")}
                             </Button>
                         </div>
                     )}

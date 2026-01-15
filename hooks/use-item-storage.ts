@@ -73,7 +73,8 @@ export function useItemStorage() {
         processedImages: (string | null)[],
         formState: ItemFormState,
         onSuccess?: () => void,
-        backgroundType?: string
+        backgroundType?: string,
+        originalImages?: string[]
     ) => {
         // バリデーション：有効な画像が少なくとも1つあること
         const validImages = processedImages.filter((img): img is string => !!img);
@@ -93,12 +94,60 @@ export function useItemStorage() {
                 return;
             }
 
+            // 1.5 オリジナル画像のアップロード (指定がある場合)
+            let uploadedOriginalUrl: string | undefined = undefined;
+            const uploadedOriginalOtherUrls: string[] = [];
+
+            if (originalImages && originalImages.length > 0) {
+                // メイン画像のオリジナル
+                if (originalImages[0]) {
+                    try {
+                        const originalStr = originalImages[0];
+                        if (originalStr.startsWith("data:") || originalStr.startsWith("blob:")) {
+                            const response = await fetch(originalStr);
+                            const blob = await response.blob();
+                            uploadedOriginalUrl = await ItemService.uploadImage(blob, user.id);
+                        } else if (originalStr.startsWith("http")) {
+                            uploadedOriginalUrl = originalStr;
+                        }
+                    } catch (e) {
+                        console.error("Failed to upload main original image:", e);
+                    }
+                }
+
+                // 2枚目以降のオリジナル
+                for (let i = 1; i < originalImages.length; i++) {
+                    const originalStr = originalImages[i];
+                    if (!originalStr) {
+                        uploadedOriginalOtherUrls.push("");
+                        continue;
+                    }
+                    try {
+                        if (originalStr.startsWith("data:") || originalStr.startsWith("blob:")) {
+                            const response = await fetch(originalStr);
+                            const blob = await response.blob();
+                            const url = await ItemService.uploadImage(blob, user.id);
+                            uploadedOriginalOtherUrls.push(url);
+                        } else if (originalStr.startsWith("http")) {
+                            uploadedOriginalOtherUrls.push(originalStr);
+                        } else {
+                            uploadedOriginalOtherUrls.push("");
+                        }
+                    } catch (e) {
+                        console.error(`Failed to upload original image ${i}:`, e);
+                        uploadedOriginalOtherUrls.push("");
+                    }
+                }
+            }
+
             // 2. 画像を並列アップロード
             const uploadPromises = validImages.map(async (imageStr) => {
                 let imageToUpload: Blob;
                 if (imageStr.startsWith("data:") || imageStr.startsWith("blob:")) {
                     const response = await fetch(imageStr);
                     imageToUpload = await response.blob();
+                } else if (imageStr.startsWith("http")) {
+                    return imageStr; // Already uploaded
                 } else {
                     throw new Error("Invalid image format for upload");
                 }
@@ -117,14 +166,14 @@ export function useItemStorage() {
                 other_images: otherImages
             };
 
-            await ItemService.saveItem(user.id, mainImageUrl, finalFormState, [], backgroundType);
+            await ItemService.saveItem(user.id, mainImageUrl, finalFormState, [], backgroundType, uploadedOriginalUrl, uploadedOriginalOtherUrls);
 
             // 4. 成功処理
             toast.success("保存しました！");
             onSuccess?.();
 
             // 5. 履歴ページへ遷移
-            router.push("/history");
+            router.push("/");
             router.refresh();
 
         } catch (error) {
@@ -188,7 +237,24 @@ export function useItemStorage() {
                         other_images: [] // 一括出品は現状1枚のみ
                     };
 
-                    await ItemService.saveItem(user.id, uploadedUrl, formState, [], item.backgroundType);
+                    // オリジナル画像のアップロード
+                    let uploadedOriginalUrl: string | undefined = undefined;
+                    const originalImageStr = originalImages[index];
+                    if (originalImageStr) {
+                        try {
+                            if (originalImageStr.startsWith("data:") || originalImageStr.startsWith("blob:")) {
+                                const response = await fetch(originalImageStr);
+                                const blob = await response.blob();
+                                uploadedOriginalUrl = await ItemService.uploadImage(blob, user.id);
+                            } else if (originalImageStr.startsWith("http")) {
+                                uploadedOriginalUrl = originalImageStr;
+                            }
+                        } catch (e) {
+                            console.warn(`Failed to upload original image for batch item ${index}`, e);
+                        }
+                    }
+
+                    await ItemService.saveItem(user.id, uploadedUrl, formState, [], item.backgroundType, uploadedOriginalUrl);
                 } catch (e) {
                     console.error(`Failed to save item ${index}:`, e);
                     throw e; // Promise.allでキャッチさせる
@@ -199,8 +265,13 @@ export function useItemStorage() {
 
             toast.success(`${batchItems.length}件の商品を保存しました！`);
             onSuccess?.();
-            router.push("/history");
+
+            // DBへの書き込み完了を待つため少し遅延
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // キャッシュを無効化してから遷移
             router.refresh();
+            router.push("/");
 
         } catch (error) {
             console.error("Batch save error:", error);
@@ -210,6 +281,118 @@ export function useItemStorage() {
         }
     }, [router]);
 
+    /**
+     * 一括出品の下書きを即座に作成（リアルタイム進捗表示用）
+     * 
+     * @returns 作成されたアイテムIDの配列
+     */
+    const createDraftBatchItems = useCallback(async (
+        originalImages: string[],
+        batchItems: BatchItem[]
+    ): Promise<string[]> => {
+        const user = await ItemService.getCurrentUser();
+        if (!user) {
+            toast.error("ログインが必要です");
+            router.push("/login");
+            return [];
+        }
+
+        const createdIds: string[] = [];
+
+        const draftPromises = batchItems.map(async (item, i) => {
+            const originalImageStr = originalImages[i];
+            if (!originalImageStr) return null;
+
+            try {
+                // 元画像をアップロード
+                let uploadedOriginalUrl: string;
+                if (originalImageStr.startsWith("data:") || originalImageStr.startsWith("blob:")) {
+                    const response = await fetch(originalImageStr);
+                    const blob = await response.blob();
+                    uploadedOriginalUrl = await ItemService.uploadImage(blob, user.id);
+                } else if (originalImageStr.startsWith("http")) {
+                    uploadedOriginalUrl = originalImageStr;
+                } else {
+                    return null;
+                }
+
+                // 下書きとしてDBに保存（is_processing = true）
+                const { data, error } = await ItemService.createDraftItem(
+                    user.id,
+                    uploadedOriginalUrl,
+                    {
+                        title: item.title || "生成中...",
+                        description: item.description || "",
+                        price: item.price || 0,
+                        status: item.status || "目立った傷や汚れなし"
+                    },
+                    item.backgroundType
+                );
+
+                if (error) {
+                    console.error(`Failed to create draft item ${i}:`, error);
+                    return null;
+                } else if (data) {
+                    return data.id;
+                }
+            } catch (e) {
+                console.error(`Error creating draft item ${i}:`, e);
+                return null;
+            }
+            return null;
+        });
+
+        const results = await Promise.all(draftPromises);
+        createdIds.push(...results.filter((id): id is string => id !== null));
+
+        return createdIds;
+    }, [router]);
+
+    /**
+     * 下書きアイテムを更新（生成完了時）
+     */
+    const updateDraftItem = useCallback(async (
+        itemId: string,
+        processedImageUrl: string,
+        title: string,
+        description: string,
+        price: number,
+        status: string,
+        originalImageUrl?: string
+    ): Promise<boolean> => {
+        try {
+            const user = await ItemService.getCurrentUser();
+            if (!user) return false;
+
+            // 処理済み画像をアップロード
+            let uploadedProcessedUrl: string;
+            if (processedImageUrl.startsWith("data:") || processedImageUrl.startsWith("blob:")) {
+                const response = await fetch(processedImageUrl);
+                const blob = await response.blob();
+                uploadedProcessedUrl = await ItemService.uploadImage(blob, user.id);
+            } else if (processedImageUrl.startsWith("http")) {
+                uploadedProcessedUrl = processedImageUrl;
+            } else {
+                return false;
+            }
+
+            await ItemService.updateDraftItem(itemId, {
+                image_url: uploadedProcessedUrl,
+                original_image_url: originalImageUrl,
+                title,
+                description,
+                price,
+                status,
+                is_processing: false
+            });
+
+            return true;
+        } catch (e) {
+            console.error(`Error updating draft item ${itemId}:`, e);
+            return false;
+        }
+    }, []);
+
     return {
         /** 保存中かどうか */
         isSaving,
@@ -217,5 +400,9 @@ export function useItemStorage() {
         saveItem,
         /** 一括出品の商品を保存する関数 */
         saveBatchItems,
+        /** 一括出品の下書きを作成する関数 */
+        createDraftBatchItems,
+        /** 下書きアイテムを更新する関数 */
+        updateDraftItem,
     };
 }

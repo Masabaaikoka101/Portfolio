@@ -12,7 +12,7 @@
  * - 単体テストが容易
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import type { Item } from "@/types";
@@ -34,9 +34,13 @@ interface UseItemListReturn {
     showUndo: boolean;
     /** 商品の並び替え（UI上のみ、DB保存なし） */
     reorderItems: (newItems: Item[]) => void;
+    /** さらに読み込むデータがあるか */
+    hasMore: boolean;
+    /** 追加読み込み */
+    loadMore: () => void;
 }
 
-const UNDO_TIMEOUT_MS = 5000;
+const UNDO_TIMEOUT_MS = 3000;
 
 /**
  * 商品リスト管理フック
@@ -47,7 +51,66 @@ export function useItemList(): UseItemListReturn {
     const [isDeleting, setIsDeleting] = useState(false);
     const [deletedItems, setDeletedItems] = useState<Item[]>([]);
     const [showUndo, setShowUndo] = useState(false);
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
     const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const ITEMS_PER_PAGE = 24;
+
+    const itemsRef = useRef<Item[]>(items);
+    const pageRef = useRef<number>(page);
+    const CACHE_KEY = "mercari_ai_items_cache";
+
+    useEffect(() => {
+        itemsRef.current = items;
+        // キャッシュの保存
+        if (typeof window !== 'undefined' && items.length > 0) {
+            try {
+                // 容量エラー回避のため、最新の1ページ分のみをキャッシュする
+                // 生成中のアイテムはキャッシュしない（古い状態を表示しないため）
+                const itemsToCache = items
+                    .filter(item => !item.is_processing)
+                    .slice(0, ITEMS_PER_PAGE);
+                sessionStorage.setItem(CACHE_KEY, JSON.stringify(itemsToCache));
+            } catch (e) {
+                // 容量オーバーの場合は警告を出して無視する（アプリをクラッシュさせない）
+                console.warn("Failed to save cache (QuotaExceededError):", e);
+            }
+        }
+    }, [items]);
+
+    useEffect(() => {
+        pageRef.current = page;
+    }, [page]);
+
+    // キャッシュの復元は無効化
+    // 理由: キャッシュからの古いデータが一瞬表示され、その後サーバーデータで置き換わるとちらつきが発生するため
+    // サーバーからのデータを常に信頼する方式に変更
+    // useEffect(() => {
+    //     if (typeof window !== 'undefined') {
+    //         try {
+    //             const cached = sessionStorage.getItem(CACHE_KEY);
+    //             if (cached) {
+    //                 const parsed = JSON.parse(cached);
+    //                 if (Array.isArray(parsed) && parsed.length > 0) {
+    //                     const sanitized = parsed.map((item: Item) => ({
+    //                         ...item,
+    //                         is_processing: false
+    //                     }));
+    //                     setItems(sanitized);
+    //                     setLoading(false);
+    //                     const estimatedPage = Math.floor(parsed.length / ITEMS_PER_PAGE);
+    //                     setPage(estimatedPage > 0 ? estimatedPage - 1 : 0);
+    //                     setHasMore(parsed.length >= ITEMS_PER_PAGE);
+    //                 } else {
+    //                     setHasMore(false);
+    //                 }
+    //             }
+    //         } catch (error) {
+    //             console.warn("Failed to load cache", error);
+    //         }
+    //     }
+    // }, []);
 
     /**
      * 削除されたアイテムの参照（クロージャ問題を回避するため）
@@ -61,23 +124,96 @@ export function useItemList(): UseItemListReturn {
      * 
      * Note: sort_orderが設定されている場合はその順序、
      * そうでない場合は作成日時順でソート
+     * @param isLoadMore 追加読み込みかどうか
      */
-    const fetchItems = useCallback(async () => {
-        setLoading(true);
-        const { data, error } = await supabase
-            .from("items")
-            .select("id, image_url, title, description, price, status, created_at, sort_order")
-            .order("sort_order", { ascending: true, nullsFirst: false })
-            .order("created_at", { ascending: false });
+    const fetchItems = useCallback(async (isLoadMore = false) => {
+        // Refから最新の値を取得
+        const currentItems = itemsRef.current;
+        const currentPage = pageRef.current;
 
-        if (error) {
-            console.error("Error fetching items:", error);
-            toast.error("商品の取得に失敗しました");
-        } else {
-            setItems(data || []);
+        if (!isLoadMore) {
+            // キャッシュデータがない場合のみローディングを表示（SWRライクな挙動）
+            if (currentItems.length === 0) {
+                setLoading(true);
+            }
         }
-        setLoading(false);
+
+        // 次のページ番号を計算
+        // 追加読み込みの場合は現在のページ + 1、それ以外（リセット）は 0
+        const nextPage = isLoadMore ? currentPage + 1 : 0;
+        const from = nextPage * ITEMS_PER_PAGE;
+        const to = from + ITEMS_PER_PAGE - 1;
+
+        try {
+            // まず is_processing を含むクエリを試行
+            const query = supabase
+                .from("items")
+                .select("id, image_url, title, description, price, status, created_at, sort_order, is_processing")
+                .order("sort_order", { ascending: true, nullsFirst: true })
+                .order("created_at", { ascending: false })
+                .range(from, to);
+
+            let { data, error } = await query;
+
+            // is_processing カラムがない場合やその他のエラーでのフォールバック
+            if (error) {
+                console.warn("Primary query failed, using fallback query:", error.message);
+                const fallbackQuery = supabase
+                    .from("items")
+                    .select("id, image_url, title, description, price, status, created_at, sort_order")
+                    .order("sort_order", { ascending: true, nullsFirst: true })
+                    .order("created_at", { ascending: false })
+                    .range(from, to);
+
+                const fallback = await fallbackQuery;
+
+                if (!fallback.error) {
+                    data = fallback.data?.map(item => ({ ...item, is_processing: false })) || null;
+                    error = null; // フォールバック成功ならエラーをクリア
+                } else {
+                    // フォールバックも失敗した場合は元のエラーを優先（またはフォールバックのエラーを表示）
+                    console.error("Fallback query also failed:", fallback.error);
+                }
+            }
+
+            if (error) {
+                // エラーオブジェクトの詳細をログ出力
+                console.error("Error fetching items:", error.message || error);
+                if (!isLoadMore) {
+                    // 定期実行などで頻繁に出ないように制御するか、ユーザーへの通知は維持
+                    // toast.error("商品の取得に失敗しました"); // 一旦コメントアウトして様子見、もしくは頻度を下げる
+                }
+            } else {
+                const newItems = data || [];
+
+                // 削除待機中のアイテムをフィルタリング（Undo猶予中に再取得しても復活させない）
+                const pendingDeleteIds = new Set(deletedItemsRef.current.map(i => i.id));
+                const filteredItems = newItems.filter(item => !pendingDeleteIds.has(item.id));
+
+                if (isLoadMore) {
+                    setItems(prev => [...prev, ...filteredItems]);
+                } else {
+                    setItems(filteredItems);
+                }
+
+                setPage(nextPage);
+                setHasMore(newItems.length === ITEMS_PER_PAGE);
+            }
+        } catch (e) {
+            console.error("Unexpected error in fetchItems:", e);
+        } finally {
+            setLoading(false);
+        }
     }, []);
+
+    /**
+     * 追加読み込み
+     */
+    const loadMore = useCallback(() => {
+        if (!loading && hasMore) {
+            fetchItems(true);
+        }
+    }, [loading, hasMore, fetchItems]);
 
     /**
      * 削除を取り消し
@@ -226,6 +362,8 @@ export function useItemList(): UseItemListReturn {
         undoDelete,
         showUndo,
         reorderItems,
+        hasMore,
+        loadMore,
     };
 }
 

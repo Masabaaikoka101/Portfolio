@@ -119,7 +119,7 @@ export function SiteHeader() {
         if (!confirmNavigation()) return;
 
         // トップページへ遷移し、フォームをリセットするためのクエリパラメータを付与
-        router.push("/?reset=true");
+        router.push("/new?reset=true");
     };
 
     /**
@@ -137,7 +137,7 @@ export function SiteHeader() {
             <div className="container flex h-16 items-center justify-between px-4">
                 {/* 左側: ロゴ + アプリ名 */}
                 {user ? (
-                    <Link href="/history" onClick={handleLogoClick} className="flex items-center gap-1.5 group">
+                    <Link href="/" onClick={handleLogoClick} className="flex items-center gap-1.5 group">
                         <Image
                             src="/logo.svg"
                             alt="Pigro"
@@ -182,7 +182,7 @@ export function SiteHeader() {
                             <DialogContent className="sm:max-w-lg">
                                 <DialogHeader>
                                     <DialogTitle className="text-xl font-bold">
-                                        AXELの使い方
+                                        Pigroの使い方
                                     </DialogTitle>
                                 </DialogHeader>
                                 {/* ステップ説明 */}
@@ -225,9 +225,9 @@ export function SiteHeader() {
                                             4
                                         </div>
                                         <div>
-                                            <h3 className="font-semibold text-gray-900">編集して保存</h3>
+                                            <h3 className="font-semibold text-gray-900">編集して更新</h3>
                                             <p className="text-sm text-gray-600">
-                                                内容を確認・編集してから保存できます
+                                                内容を確認・編集してから更新できます
                                             </p>
                                         </div>
                                     </div>
@@ -241,16 +241,15 @@ export function SiteHeader() {
                             </DialogContent>
                         </Dialog>
 
-                        {/* ログイン済み: 新規作成ボタン + ユーザーメニュー */}
+                        {/* 右側: ナビゲーション - ログイン時のみ */}
                         {user && (
-                            <>
-                                {/* 新規作成ボタン（クリックでファイル選択） */}
+                            <div className="flex items-center gap-1.5 md:gap-3">
                                 <Button
                                     onClick={handleNewClick}
-                                    className="bg-blue-600 text-white hover:bg-blue-700 rounded-full px-4 flex items-center gap-1.5 shadow-sm"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-sm hover:shadow active:scale-95 transition-all h-9 px-3 md:h-10 md:px-4 flex items-center justify-center gap-1.5"
                                 >
-                                    <Plus className="h-4 w-4" />
-                                    <span className="hidden sm:inline">新規作成</span>
+                                    <Plus className="h-4 w-4 md:h-5 md:w-5" />
+                                    <span className="text-xs md:text-sm font-bold whitespace-nowrap">新規作成</span>
                                 </Button>
 
                                 {/* ユーザーメニュー */}
@@ -262,10 +261,22 @@ export function SiteHeader() {
                                             className="flex items-center gap-1 hover:bg-gray-100 px-2"
                                         >
                                             {/* ユーザーアバター */}
-                                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-700 font-semibold text-sm">
-                                                {getUserInitial()}
-                                            </div>
-                                            <ChevronDown className="h-3 w-3 text-gray-500" />
+                                            {user.user_metadata?.avatar_url ? (
+                                                <div className="relative h-8 w-8 rounded-full overflow-hidden border border-gray-200">
+                                                    <Image
+                                                        src={user.user_metadata.avatar_url}
+                                                        alt="Avatar"
+                                                        fill
+                                                        sizes="32px"
+                                                        className="object-cover"
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-700 font-semibold text-sm">
+                                                    {getUserInitial()}
+                                                </div>
+                                            )}
+                                            <ChevronDown className="h-3 w-3 text-gray-500 hidden md:block" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-48">
@@ -285,7 +296,7 @@ export function SiteHeader() {
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
-                            </>
+                            </div>
                         )}
                     </div>
                 )}

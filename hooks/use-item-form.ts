@@ -28,6 +28,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { toast } from "sonner";
 
 /**
  * ウィザードステップの定義
@@ -38,6 +39,8 @@ import { useImageUpload } from "./use-image-upload";
 import { useAiAnalysis } from "./use-ai-analysis";
 import { useItemStorage } from "./use-item-storage";
 import { useBatchJob } from "@/contexts/BatchJobContext";
+import { AiService } from "@/services/ai.service";
+import { ItemService } from "@/services/item.service";
 
 /**
  * 出品モード
@@ -96,6 +99,7 @@ export function useItemForm(options?: UseItemFormOptions) {
         reorderImages,
         appendImages,
         removeImage,
+        replaceImage,
     } = useImageUpload();
 
     // =========================================================================
@@ -338,7 +342,123 @@ export function useItemForm(options?: UseItemFormOptions) {
     // =========================================================================
     // 4. 保存処理（useItemStorage から取得）- 依存解決のため上に移動
     // =========================================================================
-    const { isSaving, saveItem: performSave, saveBatchItems: performBatchSave } = useItemStorage();
+    const {
+        isSaving,
+        saveItem: performSave,
+        saveBatchItems: performBatchSave,
+        createDraftBatchItems,
+        updateDraftItem,
+    } = useItemStorage();
+
+    /**
+     * 一括生成：下書き作成→履歴へ遷移→バックグラウンド処理→完了時に更新
+     * 
+     * @returns 作成されたアイテムIDの配列（履歴への遷移後に処理を継続するための参照）
+     */
+    const [isBatchCreating, setIsBatchCreating] = useState(false);
+
+    /**
+     * 一括生成：下書き作成→履歴へ遷移→バックグラウンド処理→完了時に更新
+     * 
+     * @returns 作成されたアイテムIDの配列（履歴への遷移後に処理を継続するための参照）
+     */
+    const startBatchWithDrafts = useCallback(async (): Promise<string[]> => {
+        if (mode !== "batch" || batchItems.length === 0) return [];
+        if (isBatchCreating) return []; // 防止ロジック
+
+        setIsBatchCreating(true);
+
+        try {
+            // reset()が呼ばれる前に変数をキャプチャ（クロージャに保持）
+            const capturedFiles = [...selectedFiles];
+            const capturedBatchItems = [...batchItems];
+            const capturedOriginalImages = [...originalImages];
+
+            // 1. 下書きを即座に作成
+            const createdIds = await createDraftBatchItems(capturedOriginalImages, capturedBatchItems);
+
+            if (createdIds.length === 0) {
+                toast.error("下書きの作成に失敗しました");
+                setIsBatchCreating(false);
+                return [];
+            }
+
+
+            // 2. バックグラウンドで各アイテムを処理（5並列で実行）
+            // Note: reset()が呼ばれてもcaptured変数は保持される
+            (async () => {
+                try {
+                    // バッチモードは各アイテムで2リクエスト(テキスト+画像)送るため
+                    // APIレート制限を考慮して3並列に制限
+                    const CONCURRENCY_LIMIT = 3;
+                    const queue = capturedFiles.map((file, i) => ({
+                        file,
+                        index: i,
+                        itemId: createdIds[i],
+                        itemSetting: capturedBatchItems[i]
+                    })).filter(task => task.file && task.itemId && task.itemSetting);
+
+                    const workers = Array(Math.min(CONCURRENCY_LIMIT, queue.length))
+                        .fill(null)
+                        .map(async (_, workerId) => {
+                            while (queue.length > 0) {
+                                const task = queue.shift();
+                                if (!task) break;
+
+                                const { file, index, itemId, itemSetting } = task;
+                                console.log(`[BatchDraft] Worker ${workerId} starting item ${index} (${itemId})`);
+
+                                try {
+                                    // テキスト生成と画像生成を並列実行
+                                    const [textResult, imageResult] = await Promise.all([
+                                        AiService.analyzeItem(file, itemSetting.status),
+                                        AiService.editImage(file, itemSetting.backgroundType)
+                                    ]);
+
+                                    // 処理済み画像のURLを取得
+                                    const processedImageUrl = imageResult.success && imageResult.imageUrl
+                                        ? imageResult.imageUrl
+                                        : capturedOriginalImages[index]; // 失敗した場合は元画像を使用
+
+                                    // 下書きを更新
+                                    await updateDraftItem(
+                                        itemId,
+                                        processedImageUrl,
+                                        textResult.title,
+                                        textResult.description,
+                                        textResult.price,
+                                        itemSetting.status,
+                                        capturedOriginalImages[index]
+                                    );
+
+                                    console.log(`[BatchDraft] Item ${index} (${itemId}) updated successfully`);
+                                } catch (error) {
+                                    console.error(`[BatchDraft] Item ${index} (${itemId}) failed:`, error);
+                                    // エラー時も is_processing を false に更新
+                                    try {
+                                        await ItemService.updateDraftItem(itemId, { is_processing: false });
+                                    } catch (e) {
+                                        console.error(`[BatchDraft] Failed to update is_processing for ${itemId}:`, e);
+                                    }
+                                }
+                            }
+                        });
+
+                    await Promise.all(workers);
+                } finally {
+                    // 全ての処理が完了（または中断）したらフラグを下ろす
+                    setIsBatchCreating(false);
+                }
+            })();
+
+            return createdIds;
+
+        } catch (error) {
+            console.error("Batch creation failed:", error);
+            setIsBatchCreating(false);
+            return [];
+        }
+    }, [mode, batchItems, originalImages, selectedFiles, createDraftBatchItems, updateDraftItem, isBatchCreating]);
 
     /**
      * 商品を保存
@@ -355,9 +475,9 @@ export function useItemForm(options?: UseItemFormOptions) {
                 price,
                 status: status as ItemStatus,
             };
-            await performSave(processedImages, formState, options?.onSuccess, backgroundType);
+            await performSave(processedImages, formState, options?.onSuccess, backgroundType, originalImages);
         }
-    }, [mode, processedImages, originalImages, batchItems, title, description, price, status, performSave, performBatchSave, options?.onSuccess]);
+    }, [mode, processedImages, originalImages, batchItems, title, description, price, status, performSave, performBatchSave, options?.onSuccess, backgroundType]);
 
 
     useEffect(() => {
@@ -454,7 +574,96 @@ export function useItemForm(options?: UseItemFormOptions) {
         setCurrentPreviewIndex(0);
         setBatchItems([]);
         setAnalyzingStates([]);
-    }, [resetImage, setOriginalImages, setProcessedImages]);
+    }, [resetImage, setOriginalImages, setProcessedImages, setAnalyzingStates]);
+
+    /**
+     * 画像追加（AI背景処理付き）
+     * プレビュー画面で画像を追加した時に自動的に背景処理を実行
+     */
+    const addImagesWithProcessing = useCallback(async (files: File[]) => {
+        if (files.length === 0) return;
+
+        // 既存画像数を記録
+        const startIndex = originalImages.length;
+
+        // まず画像を追加（appendImages は非同期で処理される）
+        appendImages(files);
+
+        // 各ファイルをAI処理
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const targetIndex = startIndex + i;
+
+            try {
+                // AI背景処理を実行
+                const result = await AiService.editImage(file, backgroundType);
+
+                if (result.success && result.imageUrl) {
+                    // processedImages を更新
+                    setProcessedImages((prev) => {
+                        const next = [...prev];
+                        // インデックスが範囲外の場合は拡張
+                        while (next.length <= targetIndex) {
+                            next.push(null);
+                        }
+                        next[targetIndex] = result.imageUrl!;
+                        return next;
+                    });
+                } else {
+                    console.warn(`[addImagesWithProcessing] Image ${i} processing failed`);
+                }
+            } catch (error) {
+                console.error(`[addImagesWithProcessing] Error processing image ${i}:`, error);
+            }
+        }
+    }, [originalImages.length, appendImages, backgroundType, setProcessedImages]);
+
+    /**
+     * 現在選択中の画像をAI再生成
+     */
+    const regenerateCurrentImage = useCallback(async () => {
+        const file = selectedFiles[currentPreviewIndex];
+        if (!file) {
+            console.warn("[regenerateCurrentImage] No file at current index");
+            return;
+        }
+
+        // 処理中を示すためにnullをセット
+        setProcessedImages((prev) => {
+            const next = [...prev];
+            next[currentPreviewIndex] = null;
+            return next;
+        });
+
+        try {
+            const result = await AiService.editImage(file, backgroundType);
+            if (result.success && result.imageUrl) {
+                setProcessedImages((prev) => {
+                    const next = [...prev];
+                    next[currentPreviewIndex] = result.imageUrl!;
+                    return next;
+                });
+                toast.success("画像を再生成しました");
+            } else {
+                // 失敗時は元の画像を復元（オリジナルをそのまま使用）
+                setProcessedImages((prev) => {
+                    const next = [...prev];
+                    next[currentPreviewIndex] = originalImages[currentPreviewIndex];
+                    return next;
+                });
+                toast.error("画像の再生成に失敗しました");
+            }
+        } catch (error) {
+            console.error("[regenerateCurrentImage] Error:", error);
+            // エラー時も元の画像を復元
+            setProcessedImages((prev) => {
+                const next = [...prev];
+                next[currentPreviewIndex] = originalImages[currentPreviewIndex];
+                return next;
+            });
+            toast.error("画像の再生成に失敗しました");
+        }
+    }, [selectedFiles, currentPreviewIndex, backgroundType, originalImages, setProcessedImages]);
 
     // =========================================================================
     // 6. 戻り値（UIコンポーネントで使用）
@@ -500,13 +709,16 @@ export function useItemForm(options?: UseItemFormOptions) {
 
         // アクション
         handleFilesSelect,
-        addImages: appendImages, // 画像追加
+        addImages: addImagesWithProcessing, // 画像追加（AI処理付き）
         startAnalysis,
+        startBatchWithDrafts, // 一括生成（リアルタイム進捗対応）
         save,
         reset,
         editImage,
         moveImage,
         reorderImages: handleReorder,
         removeImage,
+        replaceImage,
+        regenerateCurrentImage, // AI再生成
     };
 }

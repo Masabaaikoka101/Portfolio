@@ -57,37 +57,50 @@ function AuthCallbackContent() {
                 // URLからハッシュパラメータを取得（Supabaseがトークンをハッシュに含める）
                 const hashParams = new URLSearchParams(window.location.hash.substring(1));
                 const type = hashParams.get("type") || searchParams.get("type");
-                const accessToken = hashParams.get("access_token");
+
+                console.log("[AuthCallback] Starting callback processing", { type, hash: window.location.hash.substring(0, 50) });
 
                 // パスワードリセットの場合
-                if (type === "recovery" && accessToken) {
+                if (type === "recovery") {
                     setIsRecovery(true);
                     setLoading(false);
                     return;
                 }
 
-                // トークンがある場合（メール確認等）
-                if (accessToken) {
-                    const { error } = await supabase.auth.getSession();
-                    if (error) {
-                        console.error("Callback error:", error);
-                        toast.error("認証に失敗しました");
-                    } else {
-                        toast.success("認証が完了しました");
-                    }
+                // セッション確立を待つ（OAuthトークン交換を含む）
+                // Supabaseは自動的にURLハッシュからトークンを読み取りセッションを確立する
+                const { data: { session }, error } = await supabase.auth.getSession();
+
+                console.log("[AuthCallback] Session check result", { hasSession: !!session, error: error?.message });
+
+                if (error) {
+                    console.error("[AuthCallback] Auth error:", error);
+                    toast.error("認証に失敗しました");
+                    window.location.href = "/login";
+                    return;
                 }
 
-                // 履歴ページにリダイレクト（window.location使用で確実に遷移）
-                window.location.href = "/history";
+                // セッションが確立されていれば成功
+                if (session) {
+                    console.log("[AuthCallback] Session established, redirecting to /");
+                    toast.success("認証が完了しました");
+                    // router.pushではなくwindow.location.hrefで確実に遷移
+                    router.push("/");
+                    router.refresh();
+                } else {
+                    // セッションがない場合はログインページへ
+                    console.warn("[AuthCallback] No session established after callback");
+                    window.location.href = "/login";
+                }
             } catch (error) {
-                console.error("Callback error:", error);
+                console.error("[AuthCallback] Callback error:", error);
                 toast.error("認証処理中にエラーが発生しました");
                 window.location.href = "/login";
             }
         };
 
         handleCallback();
-    }, [searchParams]);
+    }, [searchParams, router]);
 
     /**
      * 新しいパスワードを設定

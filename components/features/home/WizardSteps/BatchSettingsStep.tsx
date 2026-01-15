@@ -13,7 +13,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Layers, Check, Settings2, Sparkles } from "lucide-react";
+import { Settings2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -112,7 +112,7 @@ export function BatchSettingsStep({
         <div className="max-w-2xl mx-auto bg-white p-4 rounded-2xl shadow-sm border border-gray-100 animate-in fade-in slide-in-from-right-4 duration-300">
             {/* ヘッダー */}
             <div className="text-center mb-4">
-                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-purple-100 text-purple-600 mb-2">
+                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-[#EE6E13]/10 text-[#EE6E13] mb-2">
                     <Settings2 className="w-5 h-5" />
                 </div>
                 <h2 className="text-lg font-bold text-gray-900">一括設定</h2>
@@ -151,9 +151,9 @@ export function BatchSettingsStep({
             <div className="min-h-[300px]">
                 {activeTab === "all" ? (
                     <div className="space-y-4 py-2 px-2">
-                        <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 flex items-start gap-3">
-                            <Sparkles className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
-                            <div className="text-xs text-purple-900">
+                        <div className="bg-[#EE6E13]/5 border border-[#EE6E13]/20 rounded-xl p-3 flex items-start gap-3">
+                            <Sparkles className="w-4 h-4 text-[#EE6E13] shrink-0 mt-0.5" />
+                            <div className="text-xs text-[#EE6E13]">
                                 <p className="font-bold mb-1">まとめて設定できます</p>
                                 <p className="opacity-80">ここでの設定は全ての選択商品に適用されます。<br />個別に変更したい場合はタブを切り替えてください。</p>
                             </div>
@@ -203,7 +203,7 @@ export function BatchSettingsStep({
                                                     </div>
                                                     <span>{opt.label}</span>
                                                     {opt.value === "white" && (
-                                                        <span className="text-[10px] font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 px-2 py-0.5 rounded-full shadow-sm ml-auto">
+                                                        <span className="text-[10px] font-bold text-white bg-[#125DA7] px-2 py-0.5 rounded-full shadow-sm ml-auto">
                                                             推奨
                                                         </span>
                                                     )}
@@ -304,7 +304,7 @@ export function BatchSettingsStep({
                     <Button
                         onClick={handleClick}
                         disabled={isAnalyzing || isSubmitting}
-                        className="flex-1 py-6 bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-lg shadow-purple-200"
+                        className="flex-1 py-6 bg-[#EE6E13] hover:bg-[#D55C0C] text-white font-bold shadow-md transition-all duration-200"
                     >
                         {isAnalyzing || isSubmitting ? (
                             <>
