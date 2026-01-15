@@ -164,7 +164,7 @@ export function ItemCard({
                 <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-25 transition-opacity duration-200 pointer-events-none" />
 
                 {/* 処理中オーバーレイ（スケルトン風）- 画像ロード完了まで維持 */}
-                {effectiveShowShimmer && (
+                {showShimmer && (
                     <div className="absolute inset-0 bg-white/60 z-30 flex items-center justify-center">
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
                         {isProcessing && (
@@ -176,7 +176,7 @@ export function ItemCard({
                 )}
 
                 {/* 価格バッジ - 0円または処理中/ロード中は非表示 */}
-                {!effectiveShowShimmer && price > 0 && (
+                {!showShimmer && price > 0 && (
                     <div className="absolute bottom-1 left-1 md:bottom-2 md:left-2 bg-black/70 text-white px-1.5 py-0.5 md:px-2 md:py-1 rounded text-[10px] md:text-sm font-bold z-10">
                         ¥{price.toLocaleString()}
                     </div>
