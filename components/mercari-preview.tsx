@@ -1,4 +1,4 @@
-import { Camera, Copy, Check, Download, Edit2, Sparkles, ChevronLeft, ChevronRight, Plus, X, ChevronDown } from "lucide-react";
+import { Camera, Copy, Check, Download, Edit2, Sparkles, ChevronLeft, ChevronRight, Plus, X, ChevronDown, ImageIcon } from "lucide-react";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -120,6 +120,8 @@ export function MercariPreview({
 
     const { copiedField, handleCopy, handleDownload, handleDownloadMultiple } = useMercariPreview();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
+    const [showAddMenu, setShowAddMenu] = React.useState(false);
 
     // "生成中..." のタイトルも分析中として扱う（DBカラム欠損時のフォールバック）
     const isAnalyzing = propIsAnalyzing || title === "生成中...";
@@ -333,28 +335,82 @@ export function MercariPreview({
                                                 );
                                             })}
 
-                                            {/* 画像追加ボタン */}
+                                            {/* 画像追加ボタン（プラス + ポップアップメニュー） */}
                                             {onAddImage && images.length < 5 && (
                                                 <div className="relative w-[calc(25%-6px)] md:w-full aspect-square">
-                                                    <Label
-                                                        className="flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 transition-colors"
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowAddMenu(!showAddMenu)}
+                                                        className="flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-blue-400 transition-colors"
                                                     >
                                                         <Plus className="h-6 w-6 text-gray-400 mb-1" />
                                                         <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap">追加</span>
-                                                        <input
-                                                            type="file"
-                                                            ref={fileInputRef}
-                                                            className="hidden"
-                                                            multiple
-                                                            accept="image/*"
-                                                            onChange={(e) => {
-                                                                if (e.target.files && e.target.files.length > 0) {
-                                                                    onAddImage(Array.from(e.target.files));
-                                                                    e.target.value = "";
-                                                                }
-                                                            }}
-                                                        />
-                                                    </Label>
+                                                    </button>
+
+                                                    {/* 隠しInput（カメラ用） */}
+                                                    <input
+                                                        type="file"
+                                                        ref={cameraInputRef}
+                                                        className="hidden"
+                                                        accept="image/*"
+                                                        capture="environment"
+                                                        onChange={(e) => {
+                                                            if (e.target.files && e.target.files.length > 0) {
+                                                                onAddImage(Array.from(e.target.files));
+                                                                e.target.value = "";
+                                                            }
+                                                        }}
+                                                    />
+                                                    {/* 隠しInput（アルバム用） */}
+                                                    <input
+                                                        type="file"
+                                                        ref={fileInputRef}
+                                                        className="hidden"
+                                                        multiple
+                                                        accept="image/*"
+                                                        onChange={(e) => {
+                                                            if (e.target.files && e.target.files.length > 0) {
+                                                                onAddImage(Array.from(e.target.files));
+                                                                e.target.value = "";
+                                                            }
+                                                        }}
+                                                    />
+
+                                                    {/* ポップアップメニュー */}
+                                                    {showAddMenu && (
+                                                        <>
+                                                            {/* 背景オーバーレイ */}
+                                                            <div
+                                                                className="fixed inset-0 z-40"
+                                                                onClick={() => setShowAddMenu(false)}
+                                                            />
+                                                            {/* メニュー */}
+                                                            <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 z-50 min-w-[140px] overflow-hidden">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setShowAddMenu(false);
+                                                                        cameraInputRef.current?.click();
+                                                                    }}
+                                                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                                                >
+                                                                    <Camera className="w-4 h-4" />
+                                                                    カメラ
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setShowAddMenu(false);
+                                                                        fileInputRef.current?.click();
+                                                                    }}
+                                                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100"
+                                                                >
+                                                                    <ImageIcon className="w-4 h-4" />
+                                                                    アルバム
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    )}
                                                     <span className="sr-only">画像を最大5枚まで追加可能</span>
                                                 </div>
                                             )}

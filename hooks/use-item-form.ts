@@ -99,6 +99,7 @@ export function useItemForm(options?: UseItemFormOptions) {
         reorderImages,
         appendImages,
         removeImage,
+        replaceImage,
     } = useImageUpload();
 
     // =========================================================================
@@ -708,6 +709,7 @@ export function useItemForm(options?: UseItemFormOptions) {
         moveImage,
         reorderImages: handleReorder,
         removeImage,
+        replaceImage,
         regenerateCurrentImage, // AI再生成
     };
 }

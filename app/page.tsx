@@ -237,6 +237,8 @@ function HomeContent() {
             <ImageOrderingStep
               originalImages={originalImages}
               reorderImages={reorderImages}
+              onAddImages={addImages}
+              onDeleteImage={removeImage}
               onNext={goToNextStep}
               onBack={() => reset({ keepMode: true })}
               mode={mode}
