@@ -189,7 +189,7 @@ export default function ItemDetailPage() {
             setInitialDescription(description);
             setInitialPrice(price);
             setInitialStatus(status);
-            setInitialImages([...localImages]);
+            setInitialImages(localImages.filter((img): img is string => img !== null));
 
             setIsEditing(false); // Exit edit mode on save
         } catch (error) {
