@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { MercariPreview } from "@/components/mercari-preview";
@@ -33,7 +33,7 @@ export default function ItemDetailPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [isEditing, setIsEditing] = useState(false); // New: Edit mode state
+    const [isEditing, setIsEditing] = useState(false); // デフォルトはプレビュー表示
 
     // Navigation Hook
     const { prevId, nextId } = useItemNavigation(itemId);
@@ -49,21 +49,41 @@ export default function ItemDetailPage() {
     const [localImages, setLocalImages] = useState<(string | null)[]>([]);
     const [processingStates, setProcessingStates] = useState<Record<number, boolean>>({});
 
+    // 初期値保持（Dirty Check用）
+    const [initialTitle, setInitialTitle] = useState("");
+    const [initialDescription, setInitialDescription] = useState("");
+    const [initialPrice, setInitialPrice] = useState(0);
+    const [initialStatus, setInitialStatus] = useState<ItemStatus | "">("");
+    const [initialImages, setInitialImages] = useState<string[]>([]);
+
     // アップロード中かどうか（processingStatesに1つでもtrueがあればアップロード中）
     const isUploading = Object.values(processingStates).some(Boolean);
 
     // Navigation Guard
     const { setNavigationGuard, confirmNavigation } = useNavigationGuard();
 
-    // Sync guard state with edit mode
-    useEffect(() => {
-        setNavigationGuard(isEditing);
-        return () => setNavigationGuard(false);
-    }, [isEditing, setNavigationGuard]);
+    // Dirty Check: 初期値と現在値を比較
+    const isDirty = React.useMemo(() => {
+        if (title !== initialTitle) return true;
+        if (description !== initialDescription) return true;
+        if (price !== initialPrice) return true;
+        if (status !== initialStatus) return true;
+        // 画像比較（URLのリストが変わったか）
+        const currentImgStr = localImages.filter(Boolean).join(',');
+        const initialImgStr = initialImages.join(',');
+        if (currentImgStr !== initialImgStr) return true;
+        return false;
+    }, [title, description, price, status, localImages, initialTitle, initialDescription, initialPrice, initialStatus, initialImages]);
 
-    // Dirty Check Logic: Confirm before leaving if editing
+    // Sync guard state with dirty state (not just isEditing)
+    useEffect(() => {
+        setNavigationGuard(isDirty);
+        return () => setNavigationGuard(false);
+    }, [isDirty, setNavigationGuard]);
+
+    // Dirty Check Logic: Confirm before leaving if there are unsaved changes
     const handleNavigation = useCallback((path: string | (() => void)) => {
-        if (isEditing) {
+        if (isDirty) {
             if (!confirmNavigation()) {
                 return;
             }
@@ -105,7 +125,7 @@ export default function ItemDetailPage() {
             setLoading(true);
             setError(null);
             setSelectedIndex(0);
-            setIsEditing(false); // Reset edit mode on load
+            // isEditing はリセットしない（常に編集モード）
 
             const { data, error } = await supabase
                 .from("items")
@@ -121,13 +141,25 @@ export default function ItemDetailPage() {
             }
 
             setItem(data);
-            setTitle(data.title || "");
-            setDescription(data.description || "");
-            setPrice(data.price || 0);
-            setStatus(data.status || "");
+            const loadedTitle = data.title || "";
+            const loadedDesc = data.description || "";
+            const loadedPrice = data.price || 0;
+            const loadedStatus = data.status || "";
 
-            const initImages = [data.image_url, ...(data.other_images || [])].filter(Boolean);
+            setTitle(loadedTitle);
+            setDescription(loadedDesc);
+            setPrice(loadedPrice);
+            setStatus(loadedStatus);
+
+            // 初期値を保存（Dirty Check用）
+            setInitialTitle(loadedTitle);
+            setInitialDescription(loadedDesc);
+            setInitialPrice(loadedPrice);
+            setInitialStatus(loadedStatus);
+
+            const initImages = [data.image_url, ...(data.other_images || [])].filter((img): img is string => !!img);
             setLocalImages(initImages);
+            setInitialImages(initImages); // 初期値も保存
             setLoading(false);
         };
 
@@ -164,16 +196,18 @@ export default function ItemDetailPage() {
     };
 
     const handleCancelEdit = () => {
-        if (!window.confirm("編集内容を破棄して元の状態に戻しますか？")) return;
-        // Revert changes by re-fetching or using initial state logic if stored.
-        // For simplicity, we can just reset state from `item` object.
-        if (item) {
-            setTitle(item.title || "");
-            setDescription(item.description || "");
-            setPrice(item.price || 0);
-            setStatus(item.status || "");
-            const initImages = [item.image_url, ...(item.other_images || [])].filter(Boolean);
-            setLocalImages(initImages);
+        // 変更がある場合のみ確認ダイアログを表示
+        if (isDirty) {
+            if (!window.confirm("変更内容が保存されていません。\n\n変更を破棄して終了しますか？")) return;
+            // Revert changes by re-fetching or using initial state logic if stored.
+            if (item) {
+                setTitle(item.title || "");
+                setDescription(item.description || "");
+                setPrice(item.price || 0);
+                setStatus(item.status || "");
+                const initImages = [item.image_url, ...(item.other_images || [])].filter(Boolean);
+                setLocalImages(initImages);
+            }
         }
         setIsEditing(false);
     };
@@ -390,7 +424,7 @@ export default function ItemDetailPage() {
                             <ArrowLeft className="h-5 w-5" />
                         </Button>
                         <h1 className="text-xl font-bold text-gray-900">
-                            {isEditing ? "商品を編集" : "作成一覧"}
+                            {isEditing ? "商品を編集" : "商品詳細"}
                         </h1>
                     </div>
 
@@ -412,14 +446,10 @@ export default function ItemDetailPage() {
                                 </Button>
                             </>
                         ) : (
-                            <div className="flex gap-2">
-                                <Button variant="ghost" onClick={handleCancelEdit}>
-                                    キャンセル
-                                </Button>
-                                <Button onClick={handleSave} disabled={saving || isUploading} className="bg-red-600 hover:bg-red-700 text-white min-w-[100px]" title={isUploading ? '画像アップロード中...' : undefined}>
-                                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "更新"}
-                                </Button>
-                            </div>
+                            <Button variant="ghost" onClick={handleCancelEdit}>
+                                <X className="h-4 w-4 mr-2" />
+                                編集を終了
+                            </Button>
                         )}
                     </div>
                 </div>
@@ -445,9 +475,12 @@ export default function ItemDetailPage() {
                             description={description}
                             price={price}
                             status={status || undefined}
+                            isBatch={false}
                             editable={isEditing} // Toggle edit mode
                             onTitleChange={setTitle}
                             onDescriptionChange={setDescription}
+                            onSave={isEditing ? handleSave : undefined}
+                            saveLabel="更新する"
                             onPriceChange={setPrice}
                             onStatusChange={setStatus}
                             onSave={isEditing ? handleSave : undefined} // Show save button inside preview only in edit mode (optional, header has it too)

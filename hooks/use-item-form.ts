@@ -566,6 +566,95 @@ export function useItemForm(options?: UseItemFormOptions) {
         setAnalyzingStates([]);
     }, [resetImage, setOriginalImages, setProcessedImages, setAnalyzingStates]);
 
+    /**
+     * 画像追加（AI背景処理付き）
+     * プレビュー画面で画像を追加した時に自動的に背景処理を実行
+     */
+    const addImagesWithProcessing = useCallback(async (files: File[]) => {
+        if (files.length === 0) return;
+
+        // 既存画像数を記録
+        const startIndex = originalImages.length;
+
+        // まず画像を追加（appendImages は非同期で処理される）
+        appendImages(files);
+
+        // 各ファイルをAI処理
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const targetIndex = startIndex + i;
+
+            try {
+                // AI背景処理を実行
+                const result = await AiService.editImage(file, backgroundType);
+
+                if (result.success && result.imageUrl) {
+                    // processedImages を更新
+                    setProcessedImages((prev) => {
+                        const next = [...prev];
+                        // インデックスが範囲外の場合は拡張
+                        while (next.length <= targetIndex) {
+                            next.push(null);
+                        }
+                        next[targetIndex] = result.imageUrl!;
+                        return next;
+                    });
+                } else {
+                    console.warn(`[addImagesWithProcessing] Image ${i} processing failed`);
+                }
+            } catch (error) {
+                console.error(`[addImagesWithProcessing] Error processing image ${i}:`, error);
+            }
+        }
+    }, [originalImages.length, appendImages, backgroundType, setProcessedImages]);
+
+    /**
+     * 現在選択中の画像をAI再生成
+     */
+    const regenerateCurrentImage = useCallback(async () => {
+        const file = selectedFiles[currentPreviewIndex];
+        if (!file) {
+            console.warn("[regenerateCurrentImage] No file at current index");
+            return;
+        }
+
+        // 処理中を示すためにnullをセット
+        setProcessedImages((prev) => {
+            const next = [...prev];
+            next[currentPreviewIndex] = null;
+            return next;
+        });
+
+        try {
+            const result = await AiService.editImage(file, backgroundType);
+            if (result.success && result.imageUrl) {
+                setProcessedImages((prev) => {
+                    const next = [...prev];
+                    next[currentPreviewIndex] = result.imageUrl!;
+                    return next;
+                });
+                toast.success("画像を再生成しました");
+            } else {
+                // 失敗時は元の画像を復元（オリジナルをそのまま使用）
+                setProcessedImages((prev) => {
+                    const next = [...prev];
+                    next[currentPreviewIndex] = originalImages[currentPreviewIndex];
+                    return next;
+                });
+                toast.error("画像の再生成に失敗しました");
+            }
+        } catch (error) {
+            console.error("[regenerateCurrentImage] Error:", error);
+            // エラー時も元の画像を復元
+            setProcessedImages((prev) => {
+                const next = [...prev];
+                next[currentPreviewIndex] = originalImages[currentPreviewIndex];
+                return next;
+            });
+            toast.error("画像の再生成に失敗しました");
+        }
+    }, [selectedFiles, currentPreviewIndex, backgroundType, originalImages, setProcessedImages]);
+
     // =========================================================================
     // 6. 戻り値（UIコンポーネントで使用）
     // =========================================================================
@@ -610,7 +699,7 @@ export function useItemForm(options?: UseItemFormOptions) {
 
         // アクション
         handleFilesSelect,
-        addImages: appendImages, // 画像追加
+        addImages: addImagesWithProcessing, // 画像追加（AI処理付き）
         startAnalysis,
         startBatchWithDrafts, // 一括生成（リアルタイム進捗対応）
         save,
@@ -619,5 +708,6 @@ export function useItemForm(options?: UseItemFormOptions) {
         moveImage,
         reorderImages: handleReorder,
         removeImage,
+        regenerateCurrentImage, // AI再生成
     };
 }

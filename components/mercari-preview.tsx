@@ -82,6 +82,7 @@ interface MercariPreviewProps {
     onStatusChange?: (value: ItemStatus) => void;
     onEditImage?: () => void;
     onRegenerate?: () => void;
+    saveLabel?: string;
 }
 
 /**
@@ -114,6 +115,7 @@ export function MercariPreview({
     onAddImage,
     onDeleteImage,
     onRegenerate,
+    saveLabel,
 }: MercariPreviewProps) {
 
     const { copiedField, handleCopy, handleDownload, handleDownloadMultiple } = useMercariPreview();
@@ -459,7 +461,7 @@ export function MercariPreview({
                                     <Input
                                         value={title}
                                         onChange={(e) => onTitleChange?.(e.target.value)}
-                                        className="text-lg font-bold border-gray-300 focus:border-blue-500 pr-10"
+                                        className="text-lg font-bold border-gray-300 focus:border-blue-500 pr-12"
                                         placeholder="商品名を入力"
                                         maxLength={40}
                                     />
@@ -475,7 +477,7 @@ export function MercariPreview({
                                 </>
                             ) : (
                                 <div className="flex items-center justify-between gap-2">
-                                    <h2 className="text-lg lg:text-xl font-bold text-gray-900 leading-tight">
+                                    <h2 className="text-lg lg:text-xl font-bold text-gray-900 leading-tight pr-10">
                                         {title || "商品名がここに入ります"}
                                     </h2>
                                     <Button
@@ -538,7 +540,7 @@ export function MercariPreview({
                                             type="number"
                                             value={price}
                                             onChange={(e) => onPriceChange?.(parseInt(e.target.value) || 0)}
-                                            className="text-2xl font-bold text-gray-900 w-40 border-gray-300 focus:border-blue-500 pr-10"
+                                            className="text-2xl font-bold text-gray-900 w-40 border-gray-300 focus:border-blue-500 pr-12"
                                             min={0}
                                         />
                                         <Button
@@ -591,7 +593,7 @@ export function MercariPreview({
                                     <Textarea
                                         value={description}
                                         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onDescriptionChange?.(e.target.value)}
-                                        className="w-full min-h-[400px] text-sm border-gray-300 focus:border-blue-500 resize-y p-3 pr-10 leading-relaxed"
+                                        className="w-full min-h-[400px] text-sm border-gray-300 focus:border-blue-500 resize-y p-3 pr-12 leading-relaxed"
                                         placeholder="商品説明を入力"
                                     />
                                     <Button
@@ -606,7 +608,7 @@ export function MercariPreview({
                                 </>
                             ) : (
                                 <div className="relative group">
-                                    <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed p-4 bg-gray-50 rounded border border-gray-100 min-h-[200px]">
+                                    <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed p-4 pr-12 bg-gray-50 rounded border border-gray-100 min-h-[200px]">
                                         {description || "ここにAI生成された商品説明文が表示されます。"}
                                     </div>
                                     <Button
@@ -631,7 +633,7 @@ export function MercariPreview({
                                 onClick={onSave}
                                 disabled={isSaving || isAnalyzing}
                             >
-                                {isSaving ? "更新中..." : isAnalyzing ? "AI分析中..." : "更新する"}
+                                {isSaving ? "処理中..." : isAnalyzing ? "AI分析中..." : (saveLabel || "更新する")}
                             </Button>
                         </div>
                     )}

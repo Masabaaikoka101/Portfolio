@@ -163,6 +163,7 @@ function HomeContent() {
     analyzingStates,
     selectMode,
     isModeSelected,
+    regenerateCurrentImage,
   } = useItemForm();
 
   // ... (navigation guard and useEffects omitted)
@@ -351,8 +352,10 @@ function HomeContent() {
               batchItems={batchItems}
               updateBatchItem={updateBatchItem}
               onReorder={reorderImages}
+              onAddImage={addImages}
               onDeleteImage={removeImage}
               analyzingStates={analyzingStates}
+              onRegenerate={regenerateCurrentImage}
             />
           </motion.div>
         )}
