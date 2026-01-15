@@ -49,6 +49,9 @@ export default function ItemDetailPage() {
     const [localImages, setLocalImages] = useState<(string | null)[]>([]);
     const [processingStates, setProcessingStates] = useState<Record<number, boolean>>({});
 
+    // アップロード中かどうか（processingStatesに1つでもtrueがあればアップロード中）
+    const isUploading = Object.values(processingStates).some(Boolean);
+
     // Navigation Guard
     const { setNavigationGuard, confirmNavigation } = useNavigationGuard();
 
@@ -143,7 +146,8 @@ export default function ItemDetailPage() {
                     image_url: localImages[0] || item.image_url,
                     original_image_url: item.original_image_url, // Keep original image URL
                     original_other_images: item.original_other_images || [], // Keep other original images
-                    other_images: localImages.slice(1).filter((img): img is string => !!img),
+                    // blob: URLは一時的なものなので保存対象から除外
+                    other_images: localImages.slice(1).filter((img): img is string => !!img && !img.startsWith('blob:')),
                 })
                 .eq("id", item.id);
 
@@ -412,8 +416,8 @@ export default function ItemDetailPage() {
                                 <Button variant="ghost" onClick={handleCancelEdit}>
                                     キャンセル
                                 </Button>
-                                <Button onClick={handleSave} disabled={saving} className="bg-red-600 hover:bg-red-700 text-white min-w-[100px]">
-                                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "保存する"}
+                                <Button onClick={handleSave} disabled={saving || isUploading} className="bg-red-600 hover:bg-red-700 text-white min-w-[100px]" title={isUploading ? '画像アップロード中...' : undefined}>
+                                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "更新"}
                                 </Button>
                             </div>
                         )}
@@ -449,6 +453,7 @@ export default function ItemDetailPage() {
                             onSave={isEditing ? handleSave : undefined} // Show save button inside preview only in edit mode (optional, header has it too)
                             isSaving={saving}
                             onRegenerate={isEditing ? handleRegenerate : undefined}
+                            isAnalyzing={item.is_processing} // Pass processing state to show skeleton
                         />
                     </div>
                 </div>
