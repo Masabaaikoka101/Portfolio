@@ -299,11 +299,9 @@ export function useItemStorage() {
 
         const createdIds: string[] = [];
 
-        for (let i = 0; i < batchItems.length; i++) {
-            const item = batchItems[i];
+        const draftPromises = batchItems.map(async (item, i) => {
             const originalImageStr = originalImages[i];
-
-            if (!originalImageStr) continue;
+            if (!originalImageStr) return null;
 
             try {
                 // 元画像をアップロード
@@ -315,7 +313,7 @@ export function useItemStorage() {
                 } else if (originalImageStr.startsWith("http")) {
                     uploadedOriginalUrl = originalImageStr;
                 } else {
-                    continue;
+                    return null;
                 }
 
                 // 下書きとしてDBに保存（is_processing = true）
@@ -325,7 +323,7 @@ export function useItemStorage() {
                     {
                         title: item.title || "生成中...",
                         description: item.description || "",
-                        price: item.price || 300,
+                        price: item.price || 0,
                         status: item.status || "目立った傷や汚れなし"
                     },
                     item.backgroundType
@@ -333,13 +331,19 @@ export function useItemStorage() {
 
                 if (error) {
                     console.error(`Failed to create draft item ${i}:`, error);
+                    return null;
                 } else if (data) {
-                    createdIds.push(data.id);
+                    return data.id;
                 }
             } catch (e) {
                 console.error(`Error creating draft item ${i}:`, e);
+                return null;
             }
-        }
+            return null;
+        });
+
+        const results = await Promise.all(draftPromises);
+        createdIds.push(...results.filter((id): id is string => id !== null));
 
         return createdIds;
     }, [router]);
