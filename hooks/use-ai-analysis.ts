@@ -129,65 +129,74 @@ export function useAiAnalysis({
         });
 
         if (mode === "batch") {
-            // 順次処理を行うための for...of ループ
-            // Why Promise.allをやめるのか: サーバー負荷軽減とレート制限回避のため
-            for (let i = 0; i < filesToProcess.length; i++) {
-                const file = filesToProcess[i];
-                const index = getRealIndex(i);
-                const itemSetting = batchItems[index];
+            // Batch processing with limited concurrency
+            const CONCURRENCY_LIMIT = 3;
+            console.log(`[AiAnalysis] Starting batch parallel processing (Limit: ${CONCURRENCY_LIMIT}). Total files: ${filesToProcess.length}`);
 
-                if (!itemSetting) {
-                    console.warn(`Batch item setting not found for index ${index}. Skipping analysis.`);
-                    onImageProcessed(index, null);
-                    setAnalyzingStates(prev => {
-                        const next = [...prev];
-                        next[index] = false;
-                        return next;
-                    });
-                    continue;
-                }
+            const queue = filesToProcess.map((file, i) => ({ file, index: getRealIndex(i) }));
+            const workers = Array(Math.min(CONCURRENCY_LIMIT, filesToProcess.length))
+                .fill(null)
+                .map(async (_, workerId) => {
+                    while (queue.length > 0) {
+                        const task = queue.shift();
+                        if (!task) break;
 
-                // テキスト生成と画像生成を並列で行う（1アイテム内では並列）
-                const textPromise = AiService.analyzeItem(file, itemSetting.status)
-                    .then((result) => {
-                        onBatchItemAnalyzed?.(index, result);
-                        setAnalyzingStates(prev => {
-                            const next = [...prev];
-                            next[index] = false;
-                            return next;
-                        });
-                    })
-                    .catch((error) => {
-                        console.error(`Batch Analysis failed [${index}]:`, error);
-                        setAnalyzingStates(prev => {
-                            const next = [...prev];
-                            next[index] = false;
-                            return next;
-                        });
-                    });
+                        const { file, index } = task;
+                        const itemSetting = batchItems[index];
 
-                const bgType = itemSetting.backgroundType;
-                const imagePromise = AiService.editImage(file, bgType)
-                    .then((result) => {
-                        if (result.success && result.imageUrl) {
-                            onImageProcessed(index, result.imageUrl);
-                        } else {
+                        console.log(`[AiAnalysis/Batch] Worker ${workerId} starting index ${index}`);
+
+                        if (!itemSetting) {
+                            console.warn(`Batch item setting not found for index ${index}. Skipping.`);
                             onImageProcessed(index, null);
+                            setAnalyzingStates(prev => {
+                                const next = [...prev];
+                                next[index] = false;
+                                return next;
+                            });
+                            continue;
                         }
-                    })
-                    .catch((error) => {
-                        console.error(`Batch Image Edit failed [${index}]:`, error);
-                        onImageProcessed(index, null);
-                    });
 
-                // このアイテムの処理が完了するまで待つ
-                await Promise.all([textPromise, imagePromise]);
+                        // テキスト生成と画像生成を並列で行う
+                        const textPromise = AiService.analyzeItem(file, itemSetting.status)
+                            .then((result) => {
+                                onBatchItemAnalyzed?.(index, result);
+                                setAnalyzingStates(prev => {
+                                    const next = [...prev];
+                                    next[index] = false;
+                                    return next;
+                                });
+                            })
+                            .catch((error) => {
+                                console.error(`Batch Analysis failed [${index}]:`, error);
+                                setAnalyzingStates(prev => {
+                                    const next = [...prev];
+                                    next[index] = false;
+                                    return next;
+                                });
+                            });
 
-                // サーバー/APIへの配慮として少し待機
-                if (i < filesToProcess.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                }
-            }
+                        const bgType = itemSetting.backgroundType;
+                        const imagePromise = AiService.editImage(file, bgType)
+                            .then((result) => {
+                                if (result.success && result.imageUrl) {
+                                    onImageProcessed(index, result.imageUrl);
+                                } else {
+                                    onImageProcessed(index, null);
+                                }
+                            })
+                            .catch((error) => {
+                                console.error(`Batch Image Edit failed [${index}]:`, error);
+                                onImageProcessed(index, null);
+                            });
+
+                        // このアイテムの全処理完了を待つ
+                        await Promise.all([textPromise, imagePromise]);
+                        console.log(`[AiAnalysis/Batch] Worker ${workerId} finished index ${index}`);
+                    }
+                });
+
+            await Promise.all(workers);
         } else {
             const shouldAnalyzeText = !targetIndices || targetIndices.includes(0);
 
@@ -211,60 +220,65 @@ export function useAiAnalysis({
                 setIsAnalyzing(false);
             }
 
-            // 画像生成を順次実行に変更
-            console.log(`[AiAnalysis] Starting sequential image processing. Total files: ${filesToProcess.length}`);
+            // Parallel processing with concurrency limit
+            const CONCURRENCY_LIMIT = 3;
+            console.log(`[AiAnalysis] Starting parallel image processing (Limit: ${CONCURRENCY_LIMIT}). Total files: ${filesToProcess.length}`);
 
-            for (let i = 0; i < filesToProcess.length; i++) {
-                const file = filesToProcess[i];
-                const index = getRealIndex(i);
+            const queue = filesToProcess.map((file, i) => ({ file, index: getRealIndex(i), loopIndex: i }));
+            const workers = Array(Math.min(CONCURRENCY_LIMIT, filesToProcess.length))
+                .fill(null)
+                .map(async (_, workerId) => {
+                    while (queue.length > 0) {
+                        const task = queue.shift();
+                        if (!task) break;
 
-                console.log(`[AiAnalysis] Loop iteration ${i}/${filesToProcess.length - 1}, index: ${index}, file: ${file?.name || 'undefined'}`);
+                        const { file, index, loopIndex } = task;
+                        console.log(`[AiAnalysis] Worker ${workerId} starting index ${index} (file: ${file?.name})`);
 
-                if (!file) {
-                    console.error(`[AiAnalysis] File at index ${i} is undefined, skipping`);
-                    onImageProcessed(index, null);
-                    continue;
-                }
+                        if (!file) {
+                            onImageProcessed(index, null);
+                            setAnalyzingStates(prev => {
+                                const next = [...prev];
+                                next[index] = false;
+                                return next;
+                            });
+                            continue;
+                        }
 
-                try {
-                    console.log(`[AiAnalysis] Starting image edit for index ${index}. Background: ${backgroundType}`);
-                    const result = await AiService.editImage(file, backgroundType);
+                        try {
+                            const result = await AiService.editImage(file, backgroundType);
 
-                    if (result.success && result.imageUrl) {
-                        console.log(`[AiAnalysis] Image ${index} edit success.`);
-                        onImageProcessed(index, result.imageUrl);
-                    } else {
-                        console.warn(`[AiAnalysis] Image ${index} edit failed/skipped:`, result.error);
-                        onImageProcessed(index, null);
-                        if (result.error) {
-                            toast.warning(`画像${index + 1}: 背景加工に失敗しました (${result.error})`);
+                            if (result.success && result.imageUrl) {
+                                console.log(`[AiAnalysis] Image ${index} edit success.`);
+                                onImageProcessed(index, result.imageUrl);
+                            } else {
+                                console.warn(`[AiAnalysis] Image ${index} edit failed/skipped:`, result.error);
+                                onImageProcessed(index, null);
+                                if (result.error) {
+                                    // エラーでも続行
+                                    toast.warning(`画像${index + 1}: 背景加工に失敗しました (${result.error})`);
+                                }
+                            }
+                        } catch (error) {
+                            console.error(`[AiAnalysis] Image ${index} edit exception:`, error);
+                            onImageProcessed(index, null);
+                        } finally {
+                            setAnalyzingStates(prev => {
+                                const next = [...prev];
+                                next[index] = false;
+                                return next;
+                            });
                         }
                     }
-                } catch (error) {
-                    console.error(`[AiAnalysis] Image ${index} edit exception:`, error);
-                    onImageProcessed(index, null);
-                    toast.error(`画像${index + 1}: 予期せぬエラーが発生しました`);
-                } finally {
-                    console.log(`[AiAnalysis] Finished iteration ${i}, setting analyzingStates[${index}] = false`);
-                    setAnalyzingStates(prev => {
-                        const next = [...prev];
-                        next[index] = false;
-                        return next;
-                    });
+                });
 
-                    // サーバー/APIへの配慮として少し待機
-                    if (i < filesToProcess.length - 1) {
-                        console.log(`[AiAnalysis] Waiting 500ms before next iteration...`);
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                    }
-                }
-            }
+            await Promise.all(workers);
 
-            console.log(`[AiAnalysis] Sequential processing complete. All ${filesToProcess.length} images processed.`);
+            console.log(`[AiAnalysis] All images processed.`);
 
             setIsEditingImage(false);
 
-            // テキスト生成がまだ終わっていなければ待つ
+            // テキスト生成待ち
             await textAnalysisPromise;
         }
 
