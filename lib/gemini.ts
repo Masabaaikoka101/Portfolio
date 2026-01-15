@@ -70,8 +70,9 @@ export const FIELD_DEFINITIONS = {
     },
 } as const;
 
-// ... (skip to GeminiOutputSchema)
-
+// ============================================================================
+// Zod Schema - バリデーション用
+// ============================================================================
 export const GeminiOutputSchema = z.object({
     /** 商品タイトル（40文字制限） */
     item_title: z.string().max(FIELD_DEFINITIONS.item_title.maxLength, "item_titleは40文字以内"),
@@ -93,8 +94,61 @@ export const GeminiOutputSchema = z.object({
     prohibited_reason: z.string().optional().default(""),
 });
 
-// ... (skip to buildPrompt)
+/**
+ * Zodスキーマから推論された型
+ */
+export type GeminiOutput = z.infer<typeof GeminiOutputSchema>;
 
+// ============================================================================
+// JSON Schema for Gemini Structured Output
+// ============================================================================
+export const outputJsonSchema = {
+    type: SchemaType.OBJECT,
+    properties: {
+        item_title: {
+            type: SchemaType.STRING,
+            description: FIELD_DEFINITIONS.item_title.description,
+        },
+        description: {
+            type: SchemaType.STRING,
+            description: FIELD_DEFINITIONS.description.description,
+        },
+        hashtags: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+            description: FIELD_DEFINITIONS.hashtags.description,
+        },
+        price: {
+            type: SchemaType.NUMBER,
+            description: FIELD_DEFINITIONS.price.description,
+        },
+        prohibited: {
+            type: SchemaType.BOOLEAN,
+            description: FIELD_DEFINITIONS.prohibited.description,
+        },
+        prohibited_reason: {
+            type: SchemaType.STRING,
+            description: FIELD_DEFINITIONS.prohibited_reason.description,
+        },
+    },
+    required: ["item_title", "description", "hashtags", "price", "prohibited", "prohibited_reason"],
+};
+
+// ============================================================================
+// フロントエンドレスポンス型
+// ============================================================================
+export interface FrontendResponse {
+    title: string;
+    description: string;
+    price: number;
+    tags: string[];
+    prohibited: boolean;
+    prohibitedReason: string;
+}
+
+// ============================================================================
+// Prompt Builder
+// ============================================================================
 export function buildPrompt(status: string): string {
     return `# 役割
 あなたはフリマアプリ「メルカリ」の出品マスターです。
@@ -172,7 +226,38 @@ JSONのみを出力してください。前置き、挨拶、コードフェン�
 }`;
 }
 
-// ... (skip to validateAndNormalize)
+// ============================================================================
+// Retry Prompt Builder
+// ============================================================================
+export function buildRetryPrompt(status: string, errorReason: string): string {
+    return `前回の出力は次の理由で無効でした: ${errorReason}
+
+JSONのみで再出力してください。前置きやコードフェンスは不要です。
+
+${buildPrompt(status)}`;
+}
+
+// ============================================================================
+// JSON Parsing with Fallback
+// ============================================================================
+export function parseJsonSafe(text: string): unknown {
+    try {
+        return JSON.parse(text);
+    } catch {
+        // フォールバック: 中括弧で囲まれた部分を抽出
+        const firstBrace = text.indexOf("{");
+        const lastBrace = text.lastIndexOf("}");
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+            const jsonSubstring = text.substring(firstBrace, lastBrace + 1);
+            return JSON.parse(jsonSubstring);
+        }
+        throw new Error("JSON構造が見つかりませんでした");
+    }
+}
+
+// ============================================================================
+// Validate and Normalize Output
+// ============================================================================
 
 export function validateAndNormalize(data: unknown): GeminiOutput {
     const parsed = GeminiOutputSchema.parse(data);
