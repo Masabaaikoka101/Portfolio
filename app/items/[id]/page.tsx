@@ -461,7 +461,7 @@ export default function ItemDetailPage() {
                             description={description}
                             price={price}
                             status={status || undefined}
-                            isBatch={false}
+
                             editable={isEditing} // Toggle edit mode
                             onTitleChange={setTitle}
                             onDescriptionChange={setDescription}
