@@ -103,6 +103,12 @@ function DraggableHistoryItem({ item, index, isSelected, onClick }: DraggableHis
                     )}
                 </button>
             </div>
+            {/* 処理中オーバーレイ（簡易版） */}
+            {(item.is_processing || item.title === "生成中...") && (
+                <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center rounded-xl pointer-events-none">
+                    <span className="text-xs text-gray-600 font-bold bg-white/80 px-2 py-1 rounded-full">生成中...</span>
+                </div>
+            )}
         </Reorder.Item>
     );
 }
@@ -464,7 +470,7 @@ export default function HistoryPage() {
                                         status={item.status || "目立った傷や汚れなし"}
                                         createdAt={item.created_at}
                                         isEditMode={false}
-                                        isProcessing={item.is_processing}
+                                        isProcessing={item.is_processing || item.title === "生成中..."}
                                         className="transition-transform"
                                     />
                                 </div>

@@ -60,29 +60,30 @@ export const ItemService = {
         const uniqueId = Math.random().toString(36).substring(2, 9);
         const fileName = `${userId}/${Date.now()}-${uniqueId}.png`;
 
-        // タイムアウトPromiseを用意 (30秒)
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Supabase Upload Timeout")), 30000)
-        );
-
         // Upload処理
-        const uploadPromise = supabase.storage
-            .from("item-images")
-            .upload(fileName, fileBlob, { contentType: "image/png" });
+        try {
+            const { error: uploadError } = await supabase.storage
+                .from("item-images")
+                .upload(fileName, fileBlob, {
+                    contentType: "image/png",
+                    upsert: false
+                });
 
-        // @ts-expect-error - Result type inference
-        const { error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]) as Awaited<ReturnType<typeof supabase.storage.from>>;
+            if (uploadError) {
+                console.error("Supabase storage upload error:", uploadError);
+                throw new Error(uploadError.message);
+            }
 
-        if (uploadError) {
-            throw new Error(`Image upload failed: ${uploadError.message}`);
+            // アップロード後に公開URLを取得
+            const { data: { publicUrl } } = supabase.storage
+                .from("item-images")
+                .getPublicUrl(fileName);
+
+            return publicUrl;
+        } catch (e: any) {
+            console.error("ItemService uploadImage failed:", e);
+            throw new Error(`Image upload failed: ${e.message || "Unknown error"}`);
         }
-
-        // アップロード後に公開URLを取得
-        const { data: { publicUrl } } = supabase.storage
-            .from("item-images")
-            .getPublicUrl(fileName);
-
-        return publicUrl;
     },
 
     /**
