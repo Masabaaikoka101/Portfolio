@@ -93,7 +93,7 @@ export function MercariPreview({
     images: propImages,
     originalImages: propOriginalImages,
     loadingStates,
-    isAnalyzing = false,
+    isAnalyzing: propIsAnalyzing = false,
     selectedIndex = 0,
     onImageSelect,
     mode = "single",
@@ -119,6 +119,9 @@ export function MercariPreview({
     const { copiedField, handleCopy, handleDownload, handleDownloadMultiple } = useMercariPreview();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // "生成中..." のタイトルも分析中として扱う（DBカラム欠損時のフォールバック）
+    const isAnalyzing = propIsAnalyzing || title === "生成中...";
+
     // 互換性対応: 配列がない場合は単体propを使用
     const images = React.useMemo(() =>
         propImages ?? (image ? [image] : []),
@@ -138,10 +141,10 @@ export function MercariPreview({
     // ローディング状態: 指定があればそれ、なければ analyze中なら全体的に... (画像個別のloadingStatesがあればそちら優先)
     const isImageLoading = loadingStates?.[selectedIndex] ?? (isAnalyzing || false);
 
-    // スロット表示が必要か（複数画像がある場合 かつ 単体モード）
-    // バッチモードの場合は、個別の商品として扱うためサムネイルリストは非表示にする
-    // 修正: 画像追加機能がある場合は、1枚でも追加ボタンを表示するためにリストを表示する
-    const showThumbnails = mode === "single" && (originalImages.length > 1 || !!onAddImage);
+    // スロット表示が必要か
+    // 画像が1枚以上あれば常にスロットエリアを表示（単体モードの場合）
+    // これにより、1枚の画像でも追加ボタンが表示され、ユーザーが画像を追加できる
+    const showThumbnails = mode === "single" && images.length >= 1;
 
     // テキストローディング（スケルトン）表示用
     const TextSkeleton = ({ className }: { className?: string }) => (
@@ -166,7 +169,9 @@ export function MercariPreview({
     }, [selectedIndex, images.length, onImageSelect]);
 
     // DnD用のローカルステート（画像インデックスの配列 = 並び順）
-    const [orderedIndices, setOrderedIndices] = useState<number[]>([]);
+    // images配列の長さに合わせて初期値を設定（空配列だと初回レンダリングで何も表示されない問題を回避）
+    const initialIndices = React.useMemo(() => images.map((_, i) => i), [images.length]);
+    const [orderedIndices, setOrderedIndices] = useState<number[]>(initialIndices);
 
     // propsのimagesが変更されたら、インデックスをリセット
     // Note: 親から並び替え済みの配列が渡されるため、内容変更時にリセットが必要
@@ -273,11 +278,11 @@ export function MercariPreview({
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="h-7 w-7 p-0 text-gray-500 hover:text-blue-600"
+                                                className="h-7 px-2 text-gray-500 hover:text-blue-600 gap-1"
                                                 onClick={() => handleDownload(displayImage, title)}
-                                                title="画像を保存"
                                             >
                                                 <Download className="h-4 w-4" />
+                                                <span className="text-xs">保存</span>
                                             </Button>
                                         );
                                     }
@@ -626,7 +631,7 @@ export function MercariPreview({
                                 onClick={onSave}
                                 disabled={isSaving || isAnalyzing}
                             >
-                                {isSaving ? "保存中..." : isAnalyzing ? "AI分析中..." : "保存する"}
+                                {isSaving ? "更新中..." : isAnalyzing ? "AI分析中..." : "更新する"}
                             </Button>
                         </div>
                     )}
