@@ -130,7 +130,7 @@ export function useAiAnalysis({
 
         if (mode === "batch") {
             // Batch processing with limited concurrency
-            const CONCURRENCY_LIMIT = 3;
+            const CONCURRENCY_LIMIT = 5;
             console.log(`[AiAnalysis] Starting batch parallel processing (Limit: ${CONCURRENCY_LIMIT}). Total files: ${filesToProcess.length}`);
 
             const queue = filesToProcess.map((file, i) => ({ file, index: getRealIndex(i) }));
@@ -221,7 +221,7 @@ export function useAiAnalysis({
             }
 
             // Parallel processing with concurrency limit
-            const CONCURRENCY_LIMIT = 3;
+            const CONCURRENCY_LIMIT = 5;
             console.log(`[AiAnalysis] Starting parallel image processing (Limit: ${CONCURRENCY_LIMIT}). Total files: ${filesToProcess.length}`);
 
             const queue = filesToProcess.map((file, i) => ({ file, index: getRealIndex(i), loopIndex: i }));

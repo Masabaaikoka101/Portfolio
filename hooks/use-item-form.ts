@@ -384,58 +384,67 @@ export function useItemForm(options?: UseItemFormOptions) {
             }
 
 
-            // 2. バックグラウンドで各アイテムを処理（非同期で継続）
-            // Note: reset()が呼ばれてもcaptured変数は保持される
-            // 2. バックグラウンドで各アイテムを処理（非同期で継続）
+            // 2. バックグラウンドで各アイテムを処理（5並列で実行）
             // Note: reset()が呼ばれてもcaptured変数は保持される
             (async () => {
                 try {
-                    for (let i = 0; i < capturedFiles.length; i++) {
-                        const file = capturedFiles[i];
-                        const itemId = createdIds[i];
-                        const itemSetting = capturedBatchItems[i];
+                    // バッチモードは各アイテムで2リクエスト(テキスト+画像)送るため
+                    // APIレート制限を考慮して3並列に制限
+                    const CONCURRENCY_LIMIT = 3;
+                    const queue = capturedFiles.map((file, i) => ({
+                        file,
+                        index: i,
+                        itemId: createdIds[i],
+                        itemSetting: capturedBatchItems[i]
+                    })).filter(task => task.file && task.itemId && task.itemSetting);
 
-                        if (!file || !itemId || !itemSetting) continue;
+                    const workers = Array(Math.min(CONCURRENCY_LIMIT, queue.length))
+                        .fill(null)
+                        .map(async (_, workerId) => {
+                            while (queue.length > 0) {
+                                const task = queue.shift();
+                                if (!task) break;
 
-                        try {
-                            // テキスト生成と画像生成を並列実行
-                            const [textResult, imageResult] = await Promise.all([
-                                AiService.analyzeItem(file, itemSetting.status),
-                                AiService.editImage(file, itemSetting.backgroundType)
-                            ]);
+                                const { file, index, itemId, itemSetting } = task;
+                                console.log(`[BatchDraft] Worker ${workerId} starting item ${index} (${itemId})`);
 
-                            // 処理済み画像のURLを取得
-                            const processedImageUrl = imageResult.success && imageResult.imageUrl
-                                ? imageResult.imageUrl
-                                : capturedOriginalImages[i]; // 失敗した場合は元画像を使用
+                                try {
+                                    // テキスト生成と画像生成を並列実行
+                                    const [textResult, imageResult] = await Promise.all([
+                                        AiService.analyzeItem(file, itemSetting.status),
+                                        AiService.editImage(file, itemSetting.backgroundType)
+                                    ]);
 
-                            // 下書きを更新
-                            await updateDraftItem(
-                                itemId,
-                                processedImageUrl,
-                                textResult.title,
-                                textResult.description,
-                                textResult.price,
-                                itemSetting.status,
-                                capturedOriginalImages[i]
-                            );
+                                    // 処理済み画像のURLを取得
+                                    const processedImageUrl = imageResult.success && imageResult.imageUrl
+                                        ? imageResult.imageUrl
+                                        : capturedOriginalImages[index]; // 失敗した場合は元画像を使用
 
-                            console.log(`[BatchDraft] Item ${i} (${itemId}) updated successfully`);
-                        } catch (error) {
-                            console.error(`[BatchDraft] Item ${i} (${itemId}) failed:`, error);
-                            // エラー時も is_processing を false に更新
-                            try {
-                                await ItemService.updateDraftItem(itemId, { is_processing: false });
-                            } catch (e) {
-                                console.error(`[BatchDraft] Failed to update is_processing for ${itemId}:`, e);
+                                    // 下書きを更新
+                                    await updateDraftItem(
+                                        itemId,
+                                        processedImageUrl,
+                                        textResult.title,
+                                        textResult.description,
+                                        textResult.price,
+                                        itemSetting.status,
+                                        capturedOriginalImages[index]
+                                    );
+
+                                    console.log(`[BatchDraft] Item ${index} (${itemId}) updated successfully`);
+                                } catch (error) {
+                                    console.error(`[BatchDraft] Item ${index} (${itemId}) failed:`, error);
+                                    // エラー時も is_processing を false に更新
+                                    try {
+                                        await ItemService.updateDraftItem(itemId, { is_processing: false });
+                                    } catch (e) {
+                                        console.error(`[BatchDraft] Failed to update is_processing for ${itemId}:`, e);
+                                    }
+                                }
                             }
-                        }
+                        });
 
-                        // サーバー負荷軽減のため少し待機
-                        if (i < capturedFiles.length - 1) {
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                        }
-                    }
+                    await Promise.all(workers);
                 } finally {
                     // 全ての処理が完了（または中断）したらフラグを下ろす
                     setIsBatchCreating(false);
