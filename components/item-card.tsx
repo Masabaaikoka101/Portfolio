@@ -48,6 +48,8 @@ interface ItemCardProps {
     isProcessing?: boolean;
     /** クリック時のコールバック */
     onClick?: (e: React.MouseEvent) => void;
+    /** Next.js Image Priority (LCP対策) */
+    priority?: boolean;
 }
 
 /**
@@ -69,6 +71,7 @@ export function ItemCard({
     isEditMode = false,
     isProcessing = false,
     onClick,
+    priority = false,
 }: ItemCardProps) {
     /**
      * 画像ロード完了フラグ
@@ -127,7 +130,7 @@ export function ItemCard({
                     src={imageUrl}
                     alt={title}
                     fill
-                    loading="lazy"
+                    priority={priority}
                     className={`object-cover transition-opacity duration-300 ${isEditMode ? "select-none pointer-events-none" : ""
                         }`}
                     sizes="(max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"

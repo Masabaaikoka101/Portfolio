@@ -218,7 +218,7 @@ export default function LoginPage() {
                 });
                 if (error) throw error;
                 toast.success("ログインしました");
-                router.push("/history");
+                router.push("/");
                 router.refresh();
             } else {
                 const { data, error } = await supabase.auth.signUp({
@@ -231,7 +231,7 @@ export default function LoginPage() {
 
                 if (data.session) {
                     toast.success("ログインしました");
-                    router.push("/history");
+                    router.push("/");
                     router.refresh();
                 } else {
                     toast.success("確認メールを送信しました。メールを確認してください。");

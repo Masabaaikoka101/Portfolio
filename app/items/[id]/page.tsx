@@ -96,7 +96,7 @@ export default function ItemDetailPage() {
     }, [isDirty, router, confirmNavigation]);
 
     // Intercept back button
-    const handleBack = () => handleNavigation("/history");
+    const handleBack = () => handleNavigation("/");
 
     // Intercept item traversal
     const goToItem = (id: string) => handleNavigation(`/items/${id}`);

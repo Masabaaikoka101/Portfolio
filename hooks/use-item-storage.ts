@@ -173,7 +173,7 @@ export function useItemStorage() {
             onSuccess?.();
 
             // 5. 履歴ページへ遷移
-            router.push("/history");
+            router.push("/");
             router.refresh();
 
         } catch (error) {
@@ -271,7 +271,7 @@ export function useItemStorage() {
 
             // キャッシュを無効化してから遷移
             router.refresh();
-            router.push("/history");
+            router.push("/");
 
         } catch (error) {
             console.error("Batch save error:", error);

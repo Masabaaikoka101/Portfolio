@@ -66,7 +66,7 @@ export function EmptyState({ onFilesSelect, onModeChange, currentMode, isModeSel
             <div className="flex flex-col min-h-[400px] animate-in fade-in duration-500">
                 <div className="w-full mb-8">
                     <Link
-                        href="/history"
+                        href="/"
                         className="inline-flex items-center gap-2 text-lg font-bold text-gray-900 hover:text-gray-600 transition-colors py-2 rounded-lg"
                     >
                         <ArrowLeft className="w-6 h-6" />

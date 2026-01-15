@@ -119,7 +119,7 @@ export function SiteHeader() {
         if (!confirmNavigation()) return;
 
         // トップページへ遷移し、フォームをリセットするためのクエリパラメータを付与
-        router.push("/?reset=true");
+        router.push("/new?reset=true");
     };
 
     /**
@@ -137,7 +137,7 @@ export function SiteHeader() {
             <div className="container flex h-16 items-center justify-between px-4">
                 {/* 左側: ロゴ + アプリ名 */}
                 {user ? (
-                    <Link href="/history" onClick={handleLogoClick} className="flex items-center gap-1.5 group">
+                    <Link href="/" onClick={handleLogoClick} className="flex items-center gap-1.5 group">
                         <Image
                             src="/logo.svg"
                             alt="Pigro"
@@ -267,6 +267,7 @@ export function SiteHeader() {
                                                         src={user.user_metadata.avatar_url}
                                                         alt="Avatar"
                                                         fill
+                                                        sizes="32px"
                                                         className="object-cover"
                                                     />
                                                 </div>
