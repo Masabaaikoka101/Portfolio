@@ -275,7 +275,7 @@ export function SiteHeader() {
                                                     {getUserInitial()}
                                                 </div>
                                             )}
-                                            <ChevronDown className="h-3 w-3 text-gray-500" />
+                                            <ChevronDown className="h-3 w-3 text-gray-500 hidden md:block" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-48">

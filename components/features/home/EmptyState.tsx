@@ -87,11 +87,11 @@ export function EmptyState({ onFilesSelect, onModeChange, currentMode, isModeSel
                         {/* 単品出品 */}
                         <button
                             onClick={() => handleModeSelect("single")}
-                            className="group relative flex flex-col items-center p-8 bg-white rounded-2xl shadow-sm border-2 border-transparent hover:border-blue-500 transition-all duration-300 hover:shadow-xl"
+                            className="group relative flex flex-col items-center p-8 bg-white rounded-2xl shadow-sm border-2 border-transparent hover:border-[#125DA7] transition-all duration-300 hover:shadow-xl"
                         >
                             <div className="relative w-24 h-24 mb-6 transition-transform duration-300 group-hover:scale-110">
-                                <div className="absolute inset-0 bg-blue-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                <div className="relative z-10 w-full h-full flex items-center justify-center text-blue-600">
+                                <div className="absolute inset-0 bg-[#125DA7]/10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                <div className="relative z-10 w-full h-full flex items-center justify-center text-[#125DA7]">
                                     <Image
                                         src="/icons/single-mode.svg"
                                         alt="Single Listing"
@@ -109,11 +109,11 @@ export function EmptyState({ onFilesSelect, onModeChange, currentMode, isModeSel
                         {/* 一括出品 */}
                         <button
                             onClick={() => handleModeSelect("batch")}
-                            className="group relative flex flex-col items-center p-8 bg-white rounded-2xl shadow-sm border-2 border-transparent hover:border-purple-500 transition-all duration-300 hover:shadow-xl"
+                            className="group relative flex flex-col items-center p-8 bg-white rounded-2xl shadow-sm border-2 border-transparent hover:border-[#EE6E13] transition-all duration-300 hover:shadow-xl"
                         >
                             <div className="relative w-24 h-24 mb-6 transition-transform duration-300 group-hover:scale-110">
-                                <div className="absolute inset-0 bg-purple-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                <div className="relative z-10 w-full h-full flex items-center justify-center text-purple-600">
+                                <div className="absolute inset-0 bg-[#EE6E13]/10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                <div className="relative z-10 w-full h-full flex items-center justify-center text-[#EE6E13]">
                                     <Layers className="w-12 h-12" />
                                 </div>
                             </div>

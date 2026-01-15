@@ -134,7 +134,7 @@ export function BackgroundSelectionStep({
                     </Button>
                     <Button
                         onClick={onStartAnalysis}
-                        className="flex-1 py-5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold"
+                        className="flex-1 py-5 bg-[#125DA7] hover:bg-[#0E4B8A] text-white font-bold shadow-md transition-all duration-200"
                     >
                         <Sparkles className="w-4 h-4 mr-2" />
                         AIで生成開始

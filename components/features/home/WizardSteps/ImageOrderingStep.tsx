@@ -60,7 +60,7 @@ export function ImageOrderingStep({
                 <div className="text-center">
                     <div className={cn(
                         "inline-flex items-center justify-center w-10 h-10 rounded-full mb-2",
-                        isBatch ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"
+                        isBatch ? "bg-[#EE6E13]/10 text-[#EE6E13]" : "bg-[#125DA7]/10 text-[#125DA7]"
                     )}>
                         {isBatch ? <Layers className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
                     </div>
@@ -165,8 +165,10 @@ export function ImageOrderingStep({
                         <Button
                             onClick={onNext}
                             className={cn(
-                                "flex-1 py-5 text-white",
-                                isBatch ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700"
+                                "flex-1 py-5 text-white shadow-md transition-all duration-200",
+                                isBatch
+                                    ? "bg-[#EE6E13] hover:bg-[#D55C0C]"
+                                    : "bg-[#125DA7] hover:bg-[#0E4B8A]"
                             )}
                         >
                             {isBatch ? "一括設定へ" : "次へ進む"}

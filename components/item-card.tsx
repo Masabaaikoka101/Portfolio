@@ -146,14 +146,14 @@ export function ItemCard({
 
                 {/* 価格バッジ - 0円または処理中は非表示 */}
                 {!isProcessing && price > 0 && (
-                    <div className="absolute bottom-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-sm font-bold z-10">
+                    <div className="absolute bottom-1 left-1 md:bottom-2 md:left-2 bg-black/70 text-white px-1.5 py-0.5 md:px-2 md:py-1 rounded text-[10px] md:text-sm font-bold z-10">
                         ¥{price.toLocaleString()}
                     </div>
                 )}
             </div>
 
             {/* コンテンツエリア - ドラッグ不可、テキスト選択可能 */}
-            <div className="p-3" draggable={false}>
+            <div className="p-2 md:p-3" draggable={false}>
                 {/* タイトル（2行で切り詰め）- 処理中はスケルトン */}
                 {isProcessing ? (
                     <div className="mb-2 space-y-1.5 hidden md:block">
@@ -178,11 +178,11 @@ export function ItemCard({
                     </h3>
                 )}
                 {/* メタ情報 */}
-                <div className="flex flex-col items-start gap-1 md:flex-row md:items-center md:justify-between md:gap-2">
-                    <span className="text-[10px] md:text-xs bg-gray-100 text-gray-600 px-1.5 md:px-2 py-0.5 rounded-full">
+                <div className="flex flex-col items-start gap-0.5 md:flex-row md:items-center md:justify-between md:gap-2">
+                    <span className="text-[9px] md:text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 md:px-2 rounded-full leading-none">
                         {status}
                     </span>
-                    <span className="text-[10px] md:text-xs text-gray-400 whitespace-nowrap">
+                    <span className="text-[9px] md:text-xs text-gray-400 whitespace-nowrap leading-none pl-0.5">
                         {formattedDate}
                     </span>
                 </div>
