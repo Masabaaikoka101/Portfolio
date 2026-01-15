@@ -21,6 +21,7 @@
 
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import type { ItemStatus } from "@/types";
@@ -70,6 +71,30 @@ export function ItemCard({
     onClick,
 }: ItemCardProps) {
     /**
+     * 画像ロード完了フラグ
+     * 
+     * Why この仕組みが必要か:
+     * - is_processingがfalseになっても、新しい画像はまだロード中の可能性がある
+     * - ロード完了までシマーを維持し、元画像が一瞬表示されるのを防ぐ
+     */
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const prevImageUrlRef = useRef(imageUrl);
+
+    // 画像URLが変わったらロード完了フラグをリセット
+    useEffect(() => {
+        if (imageUrl !== prevImageUrlRef.current) {
+            setImageLoaded(false);
+            prevImageUrlRef.current = imageUrl;
+        }
+    }, [imageUrl]);
+
+    // 処理中が終わった直後で、画像がまだロードされていない場合はシマーを継続
+    const showShimmer = isProcessing || (!imageLoaded && !isProcessing && prevImageUrlRef.current === imageUrl && !imageLoaded);
+    // 実際には: isProcessing中 または 画像変更後まだロードされていない場合
+    // より簡潔に書くと:
+    const effectiveShowShimmer = isProcessing || !imageLoaded;
+
+    /**
      * 日付フォーマット
      *
      * Why toLocaleDateStringを使うのか:
@@ -107,9 +132,11 @@ export function ItemCard({
                         }`}
                     sizes="(max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
                     draggable={!isEditMode}
+                    onLoad={() => setImageLoaded(true)}
                     onError={(e) => {
                         // エラー時は透明にして、背面のスケルトンやアイコンを表示させる
                         e.currentTarget.style.opacity = "0";
+                        setImageLoaded(true); // エラー時もローディング終了扱い
                     }}
                 />
 
@@ -134,18 +161,20 @@ export function ItemCard({
                 {/* ホバー時の白オーバーレイ */}
                 <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-25 transition-opacity duration-200 pointer-events-none" />
 
-                {/* 処理中オーバーレイ（スケルトン風） */}
-                {isProcessing && (
+                {/* 処理中オーバーレイ（スケルトン風）- 画像ロード完了まで維持 */}
+                {effectiveShowShimmer && (
                     <div className="absolute inset-0 bg-white/60 z-30 flex items-center justify-center">
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
-                        <span className="text-xs text-gray-600 font-medium bg-white/80 px-2 py-1 rounded-full z-10">
-                            生成中...
-                        </span>
+                        {isProcessing && (
+                            <span className="text-xs text-gray-600 font-medium bg-white/80 px-2 py-1 rounded-full z-10">
+                                生成中...
+                            </span>
+                        )}
                     </div>
                 )}
 
-                {/* 価格バッジ - 0円または処理中は非表示 */}
-                {!isProcessing && price > 0 && (
+                {/* 価格バッジ - 0円または処理中/ロード中は非表示 */}
+                {!effectiveShowShimmer && price > 0 && (
                     <div className="absolute bottom-1 left-1 md:bottom-2 md:left-2 bg-black/70 text-white px-1.5 py-0.5 md:px-2 md:py-1 rounded text-[10px] md:text-sm font-bold z-10">
                         ¥{price.toLocaleString()}
                     </div>

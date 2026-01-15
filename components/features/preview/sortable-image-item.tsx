@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import Image from "next/image";
@@ -35,6 +35,20 @@ export function SortableImageItem({
     onClick,
     onDelete,
 }: SortableImageItemProps) {
+    // 画像ロード完了状態を管理（チラつき防止）
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const prevImageSrcRef = useRef(imageSrc);
+
+    // 画像URLが変更されたらロード状態をリセット
+    useEffect(() => {
+        if (imageSrc !== prevImageSrcRef.current) {
+            setImageLoaded(false);
+            prevImageSrcRef.current = imageSrc;
+        }
+    }, [imageSrc]);
+
+    // ローディング表示: isLoadingがtrue、または画像がまだロードされていない
+    const showLoading = isLoading || (imageSrc && !imageLoaded);
     const {
         attributes,
         listeners,
@@ -87,6 +101,8 @@ export function SortableImageItem({
                         className="object-cover pointer-events-none select-none"
                         unoptimized
                         draggable={false}
+                        onLoad={() => setImageLoaded(true)}
+                        onError={() => setImageLoaded(true)}
                     />
                 )}
 
@@ -97,11 +113,11 @@ export function SortableImageItem({
                     </div>
                 )}
 
-                {/* 処理中オーバーレイ */}
-                {isLoading && (
+                {/* 処理中オーバーレイ（画像ロード完了まで表示） */}
+                {showLoading && (
                     <div className="absolute inset-0 bg-white/60 animate-pulse flex items-center justify-center">
                         <span className="text-xs text-gray-700 font-medium">
-                            処理中
+                            {isLoading ? "処理中" : "読込中"}
                         </span>
                     </div>
                 )}
