@@ -76,8 +76,11 @@ export function EmptyState({ onFilesSelect, onModeChange, currentMode, isModeSel
 
                 <div className="flex flex-col items-center justify-center flex-1 w-full">
                     <div className="text-center mb-8">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">出品方法を選択</h2>
-                        <p className="text-gray-500">商品の数に合わせて最適な方法を選んでください</p>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">生成モードを選択</h2>
+                        <p className="text-gray-500">
+                            商品の数に合わせて最適なモードを選んでください<br />
+                            AIが最適な画像・商品情報を生成します
+                        </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl px-4">
@@ -97,10 +100,9 @@ export function EmptyState({ onFilesSelect, onModeChange, currentMode, isModeSel
                                     />
                                 </div>
                             </div>
-                            <h3 className="text-lg font-bold text-gray-900 mb-2">単品出品</h3>
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">単品生成</h3>
                             <p className="text-sm text-gray-500 text-center">
-                                1点ずつ丁寧に。<br />
-                                AIが最適な説明文を生成します
+                                １つの商品の出品に最適
                             </p>
                         </button>
 
@@ -115,10 +117,9 @@ export function EmptyState({ onFilesSelect, onModeChange, currentMode, isModeSel
                                     <Layers className="w-12 h-12" />
                                 </div>
                             </div>
-                            <h3 className="text-lg font-bold text-gray-900 mb-2">一括出品</h3>
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">まとめて生成</h3>
                             <p className="text-sm text-gray-500 text-center">
-                                まとめて効率的に。<br />
-                                複数商品を一気にリスト化します
+                                複数の商品の出品に最適
                             </p>
                         </button>
                     </div>

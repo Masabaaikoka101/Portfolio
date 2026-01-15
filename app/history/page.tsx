@@ -413,7 +413,7 @@ export default function HistoryPage() {
                             まだ作成済みアイテムはありません
                         </h3>
                         <p className="text-sm text-gray-500">
-                            右上の「新規作成」ボタンから出品を始めましょう
+                            右上の「新規作成」ボタンから出品の準備をはじめましょう
                         </p>
                     </div>
                 ) : (
