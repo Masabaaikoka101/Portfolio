@@ -167,7 +167,6 @@ export function SiteHeader() {
                 {/* 右側: ナビゲーション */}
                 <div className="flex items-center gap-2">
                     {/* 使い方モーダル - 常に表示 */}
-                    {/* 使い方モーダル */}
                     <Dialog open={isHelpOpen} onOpenChange={setIsHelpOpen}>
                         <DialogTrigger asChild>
                             <Button
@@ -245,6 +244,17 @@ export function SiteHeader() {
                                         </p>
                                     </div>
                                 </div>
+                            </div>
+                            {/* バグ報告リンク */}
+                            <div className="text-center pt-2 border-t">
+                                <a
+                                    href="https://forms.gle/gmjTgxPjNaCjmXJR7"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-gray-500 hover:text-blue-600 underline"
+                                >
+                                    バグ・ご意見を報告する
+                                </a>
                             </div>
                             <Button
                                 onClick={() => setIsHelpOpen(false)}

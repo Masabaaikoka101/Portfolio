@@ -25,9 +25,10 @@ import {
     rectSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, ArrowRight, ArrowLeft, ImageIcon, Layers, Camera, Plus, X } from "lucide-react";
+import { GripVertical, ArrowRight, ArrowLeft, ImageIcon, Layers, Camera, Plus, X, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ListingMode } from "@/hooks/use-item-form";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -252,9 +253,19 @@ export function ImageOrderingStep({
                 )}
 
                 <div className="space-y-2">
-                    <Label className="text-sm">
-                        {isBatch ? `選択中: ${originalImages.length}点` : `画像の順序 (${originalImages.length}/${MAX_FILES})`}
-                    </Label>
+                    <div className="flex items-center gap-2">
+                        <Label className="text-sm">
+                            {isBatch ? `選択中: ${originalImages.length}点` : `画像の順序 (${originalImages.length}/${MAX_FILES})`}
+                        </Label>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>合計5枚までしかアップロードできません。</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </div>
 
                     <DndContext
                         sensors={sensors}
