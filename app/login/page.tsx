@@ -235,7 +235,7 @@ export default function LoginPage() {
                     router.push("/");
                     router.refresh();
                 } else {
-                    toast.success("確認メールを送信しました。メールを確認してください。");
+                    toast.success("確認メールを送信しました。メール内のリンクをクリックして登録を完了してください。");
                 }
             }
         } catch (error) {
