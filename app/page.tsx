@@ -119,7 +119,7 @@ export default function HistoryPage() {
     const router = useRouter();
     const [isEditMode, setIsEditMode] = useState(false);
 
-    // OAuthコールバック処理はmiddlewareとauth/callback/route.tsで処理されるため削除済み
+
 
 
 
@@ -322,44 +322,44 @@ export default function HistoryPage() {
                 </div>
 
                 {isEditMode && items.length > 0 && (
-                    <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200 mb-4 animate-in fade-in duration-200">
-                        <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 sm:gap-3 bg-white p-2 sm:p-3 rounded-lg border border-gray-200 mb-4 animate-in fade-in duration-200">
+                        <div className="flex items-center gap-2 sm:gap-3">
                             <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={toggleSelectAll}
-                                className="text-gray-600"
+                                className="text-gray-600 px-2 sm:px-3"
                             >
                                 {isAllSelected ? (
                                     <>
-                                        <CheckSquare className="h-4 w-4 mr-1 text-blue-600" />
-                                        全解除
+                                        <CheckSquare className="h-4 w-4 sm:mr-1 text-blue-600" />
+                                        <span className="hidden sm:inline">全解除</span>
                                     </>
                                 ) : (
                                     <>
-                                        <Square className="h-4 w-4 mr-1" />
-                                        全選択
+                                        <Square className="h-4 w-4 sm:mr-1" />
+                                        <span className="hidden sm:inline">全選択</span>
                                     </>
                                 )}
                             </Button>
-                            <span className="text-sm text-gray-500">
+                            <span className="text-xs sm:text-sm text-gray-500 whitespace-nowrap">
                                 {selectedCount}件選択中
                             </span>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-1.5 sm:gap-2">
                             <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={handleBulkDownload}
                                 disabled={selectedCount === 0 || isDownloading}
-                                className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                                className="border-blue-200 text-blue-600 hover:bg-blue-50 px-2 sm:px-3"
                             >
                                 {isDownloading ? (
-                                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                    <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
-                                    <Download className="h-4 w-4 mr-1" />
+                                    <Download className="h-4 w-4" />
                                 )}
-                                ダウンロード ({selectedCount})
+                                <span className="hidden sm:inline sm:ml-1">ダウンロード ({selectedCount})</span>
                             </Button>
 
                             <Button
@@ -367,14 +367,14 @@ export default function HistoryPage() {
                                 size="sm"
                                 onClick={handleDelete}
                                 disabled={selectedCount === 0 || isDeleting}
-                                className="bg-red-600 hover:bg-red-700"
+                                className="bg-red-600 hover:bg-red-700 px-2 sm:px-3"
                             >
                                 {isDeleting ? (
-                                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                    <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
-                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    <Trash2 className="h-4 w-4" />
                                 )}
-                                削除 ({selectedCount})
+                                <span className="hidden sm:inline sm:ml-1">削除 ({selectedCount})</span>
                             </Button>
                         </div>
                     </div>

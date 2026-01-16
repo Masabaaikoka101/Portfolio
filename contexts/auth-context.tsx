@@ -29,10 +29,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const initializeAuth = async () => {
             try {
                 const {
-                    data: { session: currentSession },
+                    data: { session },
                 } = await supabase.auth.getSession();
-                setSession(currentSession);
-                setUser(currentSession?.user ?? null);
+                const {
+                    data: { user },
+                } = await supabase.auth.getUser();
+
+                setSession(session);
+                setUser(user ?? null);
             } catch (error) {
                 console.error("Auth initialization error:", error);
             } finally {
