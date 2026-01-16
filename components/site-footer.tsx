@@ -6,8 +6,6 @@
  * - バグ報告・お問い合わせリンク
  */
 
-import Link from "next/link";
-
 export function SiteFooter() {
     return (
         <footer className="w-full border-t bg-white py-4">
