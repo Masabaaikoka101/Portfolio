@@ -8,7 +8,7 @@
 
 export function SiteFooter() {
     return (
-        <footer className="w-full border-t bg-white py-4">
+        <footer className="w-full border-t bg-white py-4 mt-auto">
             <div className="container mx-auto flex flex-col items-center justify-center gap-2 px-4 text-center">
                 <div className="flex items-center gap-4 text-sm text-gray-500">
                     <a
