@@ -262,7 +262,7 @@ export function MercariPreview({
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        <p>生成結果がうまくいかない場合は、再生成をお試しください。</p>
+                                        <p>生成結果がうまくいかなかったときなどに、お使いください</p>
                                     </TooltipContent>
                                 </Tooltip>
                             )}
