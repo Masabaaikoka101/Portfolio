@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 /**
  * AI分析ローディングコンポーネント
  *
@@ -51,12 +52,12 @@ export function AnalysisLoading() {
      * 2. 500msごとにドットを更新（...→空→.→..→...）
      */
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMounted(true);
         const interval = setInterval(() => {
             setDots((prev) => (prev.length >= 3 ? "" : prev + "."));
         }, 500);
         return () => clearInterval(interval);
+
     }, []);
 
     return (

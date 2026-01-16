@@ -54,7 +54,9 @@ export default function ItemDetailPage() {
     const [initialImages, setInitialImages] = useState<string[]>([]);
 
     // アップロード中かどうか（processingStatesに1つでもtrueがあればアップロード中）
-    const isUploading = Object.values(processingStates).some(Boolean);
+    // NOTE: 将来的にUI表示に使用予定のため定義を残す
+    const _isUploading = Object.values(processingStates).some(Boolean);
+    void _isUploading; // lint警告を抑制
 
     // Navigation Guard
     const { setNavigationGuard, confirmNavigation } = useNavigationGuard();
@@ -292,7 +294,7 @@ export default function ItemDetailPage() {
                 const fileExt = file.name.split(".").pop() || "png";
                 // Ensure unique filename
                 const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-                const userId = (item as any).user_id || "guest";
+                const userId = item.user_id || "guest";
                 const filePath = `${userId}/${fileName}`;
 
                 console.log(`[Debug] Uploading to Supabase: ${filePath}`);

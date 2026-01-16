@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import type { Item, ItemStatus } from "@/types";
+import type { Item } from "@/types";
 
 interface UseBatchAnalysisResult {
     isProcessing: boolean;

@@ -155,7 +155,6 @@ function HomeContent() {
     reset,
     reorderImages,
     mode,
-    setMode,
     batchItems,
     updateBatchItem,
     updateAllBatchItems,

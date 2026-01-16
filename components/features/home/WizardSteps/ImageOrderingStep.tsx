@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 /**
  * 画像並び替えステップコンポーネント
  *
@@ -145,12 +146,12 @@ export function ImageOrderingStep({
     const [items, setItems] = useState<ImageItem[]>([]);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setItems(originalImages.map((src, index) => ({
             id: `image-${index}`,
             src,
             originalIndex: index,
         })));
+
     }, [originalImages]);
 
     const sensors = useSensors(

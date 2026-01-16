@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 /**
  * 商品カードコンポーネント
  *
@@ -89,6 +90,7 @@ export function ItemCard({
             setImageLoaded(false);
             prevImageUrlRef.current = imageUrl;
         }
+
     }, [imageUrl]);
 
     // 処理中が終わった直後で、画像がまだロードされていない場合はシマーを継続

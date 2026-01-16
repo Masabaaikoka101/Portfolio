@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useCallback, ReactNode } fr
 import { toast } from "sonner";
 import { AiService } from "@/services/ai.service";
 import { supabase } from "@/lib/supabase";
-import { BatchItem, ItemStatus } from "@/types";
+import { BatchItem } from "@/types";
 // import { uploadImage } from "@/utils/image-upload"; // 存在しないため削除
 
 /**
@@ -105,11 +105,11 @@ export function BatchJobProvider({ children }: { children: ReactNode }) {
 
             return true;
 
-        } catch (error) {
+        } catch (error: unknown) {
             console.error(`[Item ${index}] Processing failed:`, error);
             // エラーの詳細を表示
             let message = "処理に失敗しました";
-            const errorMessage = (error as any)?.message || (typeof error === "string" ? error : "");
+            const errorMessage = error instanceof Error ? error.message : (typeof error === "string" ? error : "");
 
             if (errorMessage) {
                 if (errorMessage.includes("Analysis")) message = "商品情報の解析に失敗しました";

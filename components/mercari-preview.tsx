@@ -1,4 +1,4 @@
-import { Camera, Copy, Check, Download, Edit2, Sparkles, ChevronLeft, ChevronRight, Plus, X, ChevronDown, ImageIcon } from "lucide-react";
+import { Camera, Copy, Check, Download, Edit2, Sparkles, ChevronLeft, ChevronRight, Plus, ChevronDown, ImageIcon } from "lucide-react";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,6 @@ import {
     SortableContext,
     sortableKeyboardCoordinates,
     verticalListSortingStrategy,
-    rectSortingStrategy,
 } from "@dnd-kit/sortable";
 
 // テキストローディング（スケルトン）表示用
@@ -176,8 +175,7 @@ export function MercariPreview({
 
     // DnD用のローカルステート（画像インデックスの配列 = 並び順）
     // images配列の長さに合わせて初期値を設定（空配列だと初回レンダリングで何も表示されない問題を回避）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const initialIndices = React.useMemo(() => images.map((_, i) => i), [images.length]);
+    const initialIndices = React.useMemo(() => images.map((_, i) => i), [images]);
     const [orderedIndices, setOrderedIndices] = useState<number[]>(initialIndices);
 
     // propsのimagesが変更されたら、インデックスをリセット
@@ -186,7 +184,7 @@ export function MercariPreview({
     useEffect(() => {
         // images配列の長さに合わせてインデックスを生成
         setOrderedIndices(images.map((_, i) => i));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- propsからstateへの同期は意図的
     }, [imagesKey]); // images内容の変更を検知
 
     // dnd-kit Sensors - 感度調整

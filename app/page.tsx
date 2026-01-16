@@ -27,8 +27,6 @@ import { useBatchAnalysis } from "@/hooks/use-batch-analysis";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBulkDownload } from "@/hooks/use-bulk-download";
 import type { Item } from "@/types";
-import { supabase } from "@/lib/supabase";
-import { toast } from "sonner";
 
 
 /**
@@ -171,7 +169,7 @@ export default function HistoryPage() {
 
     // 一括生成処理 (Contextから取得)
     const { isProcessing, progress, total } = useBatchJob();
-    const { processBatch } = useBatchAnalysis();
+    useBatchAnalysis(); // processBatchは未使用だがフック自体は維持
 
     // 一括ダウンロード
     const { isDownloading, downloadItems } = useBulkDownload();

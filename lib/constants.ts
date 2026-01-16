@@ -18,8 +18,6 @@
  * - as const アサーション: https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#literal-types
  */
 
-import type { ItemStatus } from "@/types";
-
 // ============================================================================
 // 商品の状態オプション（メルカリ公式の選択肢）
 // ============================================================================

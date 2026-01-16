@@ -21,7 +21,7 @@ import { BatchJobProvider } from "@/contexts/BatchJobContext";
 import { FileSelectProvider } from "@/contexts/file-select-context";
 import { NavigationGuardProvider } from "@/contexts/navigation-guard-context";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children }: { children: ReactNode }) {
     return (
         <AuthProvider>
             <BatchJobProvider>
