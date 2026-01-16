@@ -179,12 +179,24 @@ export function SiteHeader() {
                                     <span className="hidden sm:inline ml-1.5">使い方</span>
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-lg">
+                            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                                 <DialogHeader>
                                     <DialogTitle className="text-xl font-bold">
                                         Pigroの使い方
                                     </DialogTitle>
                                 </DialogHeader>
+                                {/* YouTube動画 */}
+                                {process.env.NEXT_PUBLIC_TUTORIAL_VIDEO_ID && process.env.NEXT_PUBLIC_TUTORIAL_VIDEO_ID !== "YOUR_VIDEO_ID_HERE" && (
+                                    <div className="w-full aspect-video rounded-lg overflow-hidden bg-gray-100">
+                                        <iframe
+                                            className="w-full h-full"
+                                            src={`https://www.youtube.com/embed/${process.env.NEXT_PUBLIC_TUTORIAL_VIDEO_ID}?rel=0`}
+                                            title="Pigroの使い方"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                            allowFullScreen
+                                        />
+                                    </div>
+                                )}
                                 {/* ステップ説明 */}
                                 <div className="space-y-4 py-4">
                                     <div className="flex gap-3">
@@ -231,6 +243,17 @@ export function SiteHeader() {
                                             </p>
                                         </div>
                                     </div>
+                                </div>
+                                {/* バグ報告リンク */}
+                                <div className="text-center pt-2 border-t">
+                                    <a
+                                        href="https://forms.gle/gmjTgxPjNaCjmXJR7"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-gray-500 hover:text-blue-600 underline"
+                                    >
+                                        バグ・ご意見を報告する
+                                    </a>
                                 </div>
                                 <Button
                                     onClick={() => setIsHelpOpen(false)}
