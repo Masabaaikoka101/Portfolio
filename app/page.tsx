@@ -119,7 +119,7 @@ export default function HistoryPage() {
     const router = useRouter();
     const [isEditMode, setIsEditMode] = useState(false);
 
-    // OAuthコールバック処理はmiddlewareとauth/callback/route.tsで処理されるため削除済み
+
 
 
 
