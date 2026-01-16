@@ -1,4 +1,4 @@
-import { Camera, Copy, Check, Download, Edit2, Sparkles, ChevronLeft, ChevronRight, Plus, ChevronDown, ImageIcon } from "lucide-react";
+import { Camera, Copy, Check, Download, Edit2, Sparkles, ChevronLeft, ChevronRight, Plus, ChevronDown, ImageIcon, Info } from "lucide-react";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ItemStatus } from "@/types";
 import { STATUS_OPTIONS } from "@/lib/constants";
 import Image from "next/image";
@@ -231,22 +232,39 @@ export function MercariPreview({
                 {/* 画像エリア - 独立したカード化 */}
                 <div className="relative bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col gap-6 min-h-[400px] lg:min-h-[600px] p-4 lg:p-6 overflow-hidden lg:sticky lg:top-24 self-start">
                     <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium text-gray-600">
-                            {mode === "batch" ? "出品アイテム (選択中)" : "商品画像"}
-                        </Label>
+                        <div className="flex items-center gap-2">
+                            <Label className="text-sm font-medium text-gray-600">
+                                {mode === "batch" ? "出品アイテム (選択中)" : "商品画像"}
+                            </Label>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>合計5枚までしかアップロードできません。</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </div>
                         <div className="flex gap-2">
                             {/* 再生成ボタン */}
                             {onRegenerate && currentOriginal && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                                    onClick={onRegenerate}
-                                    disabled={isImageLoading}
-                                >
-                                    <Sparkles className="h-4 w-4 mr-1" />
-                                    <span className="text-xs">AI再生成</span>
-                                </Button>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                                            onClick={onRegenerate}
+                                            disabled={isImageLoading}
+                                        >
+                                            <Sparkles className="h-4 w-4 mr-1" />
+                                            <span className="text-xs">AI再生成</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>生成結果がうまくいかない場合は、再生成をお試しください。</p>
+                                    </TooltipContent>
+                                </Tooltip>
                             )}
 
                             {displayImage && (

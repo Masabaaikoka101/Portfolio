@@ -156,9 +156,10 @@ export default function ItemDetailPage() {
             setInitialPrice(loadedPrice);
             setInitialStatus(loadedStatus);
 
-            const initImages = [data.image_url, ...(data.other_images || [])].filter((img): img is string => !!img);
-            setLocalImages(initImages);
-            setInitialImages(initImages); // 初期値も保存
+            // 処理済み画像を初期化
+            const processedImages = [data.image_url, ...(data.other_images || [])].filter((img): img is string => !!img);
+            setLocalImages(processedImages);
+            setInitialImages(processedImages); // 初期値も保存
             setLoading(false);
         };
 
@@ -449,10 +450,21 @@ export default function ItemDetailPage() {
                             image={item.image_url}
                             originalImage={item.original_image_url} // Persist original image
                             images={localImages}
-                            originalImages={[
-                                item.original_image_url,
-                                ...(item.original_other_images || [])
-                            ]}
+                            originalImages={(() => {
+                                // localImages と同じ長さの originalImages 配列を構築
+                                // original_other_images が不足している場合は undefined で埋める
+                                const origMain = item.original_image_url;
+                                const origOthers = item.original_other_images || [];
+                                const result: (string | undefined)[] = [];
+                                for (let i = 0; i < localImages.length; i++) {
+                                    if (i === 0) {
+                                        result.push(origMain);
+                                    } else {
+                                        result.push(origOthers[i - 1]);
+                                    }
+                                }
+                                return result;
+                            })()}
                             selectedIndex={selectedIndex}
                             onImageSelect={setSelectedIndex}
                             loadingStates={localImages.map((_, i) => !!processingStates[i])}
