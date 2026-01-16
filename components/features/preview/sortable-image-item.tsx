@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
@@ -42,10 +43,10 @@ export function SortableImageItem({
     // 画像URLが変更されたらロード状態をリセット
     useEffect(() => {
         if (imageSrc !== prevImageSrcRef.current) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setImageLoaded(false);
             prevImageSrcRef.current = imageSrc;
         }
+
     }, [imageSrc]);
 
     // ローディング表示: isLoadingがtrue、または画像がまだロードされていない

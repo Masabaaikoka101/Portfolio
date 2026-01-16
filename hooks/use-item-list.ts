@@ -49,7 +49,7 @@ export function useItemList(): UseItemListReturn {
     const [items, setItems] = useState<Item[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDeleting, setIsDeleting] = useState(false);
-    const [deletedItems, setDeletedItems] = useState<Item[]>([]);
+    const [, setDeletedItems] = useState<Item[]>([]);
     const [showUndo, setShowUndo] = useState(false);
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);

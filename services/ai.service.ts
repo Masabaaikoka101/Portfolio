@@ -54,7 +54,7 @@ const compressImage = async (file: File): Promise<File> => {
 
     console.log(`[AiService] Processing image: ${file.name}, size: ${file.size} bytes`);
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         const img = new Image();
         const url = URL.createObjectURL(file);
 
@@ -214,7 +214,7 @@ export const AiService = {
                 } else if (errorData.error) {
                     errorDetail = errorData.error;
                 }
-            } catch (e) {
+            } catch {
                 // ignore
             }
             // エラーをthrowせず、失敗結果として返す

@@ -24,32 +24,6 @@ import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { AiService } from "@/services/ai.service";
 import { AnalyzeResponse, BatchItem } from "@/types";
-
-/**
- * フックのProps型
- *
- * Why コールバック関数を受け取るのか:
- * - 結果の処理方法は呼び出し元が決める（制御の反転）
- * - フック自体は状態管理に専念
- * - テスト時にコールバックをモック化しやすい
- */
-interface UseAiAnalysisProps {
-    /** 背景タイプ */
-    backgroundType: string;
-    /** テキスト生成成功時のコールバック */
-    onAnalysisSuccess: (result: AnalyzeResponse) => void;
-    /** 画像編集成功時のコールバック */
-    onImageEditSuccess: (imageUrl: string) => void;
-    /** 画像編集スキップ時のコールバック */
-    onImageEditSkip: () => void;
-    /** モード */
-    mode?: "single" | "batch";
-    /** バッチアイテム設定 */
-    batchItems?: BatchItem[];
-    /** バッチアイテム分析完了コールバック */
-    onBatchItemAnalyzed?: (index: number, result: AnalyzeResponse) => void;
-}
-
 /**
  * AI分析フック
  *

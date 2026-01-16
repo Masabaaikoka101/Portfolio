@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const next = searchParams.get("next") ?? "/";
 
     if (code) {
-        const cookieStore = new Map<string, { value: string; options: any }>();
+        const cookieStore = new Map<string, { value: string; options: Record<string, unknown> }>();
 
         const supabase = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,

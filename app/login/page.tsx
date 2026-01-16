@@ -220,13 +220,15 @@ export default function LoginPage() {
                 router.push("/");
                 router.refresh();
             } else {
-                const { data, error } = await supabase.auth.signUp({
+                const { data, error: signUpError } = await supabase.auth.signUp({
                     email,
                     password,
                     options: {
                         emailRedirectTo: `${window.location.origin}/auth/callback`,
                     },
                 });
+
+                if (signUpError) throw signUpError;
 
                 if (data.session) {
                     toast.success("ログインしました");

@@ -80,9 +80,10 @@ export const ItemService = {
                 .getPublicUrl(fileName);
 
             return publicUrl;
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("ItemService uploadImage failed:", e);
-            throw new Error(`Image upload failed: ${e.message || "Unknown error"}`);
+            const message = e instanceof Error ? e.message : "Unknown error";
+            throw new Error(`Image upload failed: ${message}`);
         }
     },
 
