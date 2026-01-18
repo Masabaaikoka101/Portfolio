@@ -67,8 +67,9 @@ mkdir -p .knowledge/logs
 ```
 
 ファイル名の形式: `YYYY-MM-DD_[タスク名(kebab-case)].md`
+※ 日付は **セッション開始日（または最初のアクションがあった日）** を使用してください（保存実行日ではありません）。
 
-例: `2026-01-17_tutorial-modal-refactor.md`
+例: `2026-01-08_tutorial-modal-refactor.md`
 
 ### 3. 保存完了を報告
 
