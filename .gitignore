@@ -39,6 +39,16 @@ yarn-error.log*
 # vercel
 .vercel
 
+# knowledge base (private)
+.knowledge/
+
+# serena (AI assistant memory)
+.serena/
+
+# project docs (private)
+README.md
+specifications.md
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
