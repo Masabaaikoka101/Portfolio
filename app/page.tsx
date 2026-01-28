@@ -408,7 +408,7 @@ export default function HistoryPage() {
                 ) : (
                     <div className={cn(
                         isEditMode ? "" : "grid grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-4",
-                        "animate-in fade-in zoom-in-95 duration-500 slide-in-from-bottom-2"
+                        "animate-in fade-in duration-500"
                     )}>
 
                         {/* 生成中スケルトン (通常モード時のみグリッド表示) */}

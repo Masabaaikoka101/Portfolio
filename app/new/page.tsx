@@ -52,10 +52,10 @@ import { toast } from "sonner";
  */
 function AuthLoading() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+    <div className="flex min-h-screen items-center justify-center bg-muted/30">
       <div className="text-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-        <p className="text-gray-600">認証を確認中...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+        <p className="text-muted-foreground">認証を確認中...</p>
       </div>
     </div>
   );
@@ -87,24 +87,24 @@ function StepIndicator({ currentStep, mode }: { currentStep: string; mode: "sing
         <div key={step.id} className="flex items-center gap-2">
           <div
             className={`
-              w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all
+              w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors duration-300
               ${index <= currentIndex
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 text-gray-500"
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "bg-muted text-muted-foreground"
               }
             `}
           >
             {index + 1}
           </div>
           <span
-            className={`text-sm hidden sm:inline ${index === currentIndex ? "text-blue-600 font-medium" : "text-gray-400"
+            className={`text-sm hidden sm:inline transition-colors duration-300 ${index === currentIndex ? "text-primary font-medium" : "text-muted-foreground"
               }`}
           >
             {step.label}
           </span>
           {index < steps.length - 1 && (
             <div
-              className={`w-8 h-0.5 ${index < currentIndex ? "bg-blue-600" : "bg-gray-200"
+              className={`w-8 h-0.5 rounded-full transition-colors duration-300 ${index < currentIndex ? "bg-primary" : "bg-muted"
                 }`}
             />
           )}
@@ -372,7 +372,7 @@ function HomeContent() {
  */
 export default function Home() {
   return (
-    <main className="min-h-screen bg-gray-50 pb-20">
+    <main className="min-h-screen bg-muted/30 pb-20">
       <Suspense fallback={<AuthLoading />}>
         <HomeContent />
       </Suspense>
