@@ -402,21 +402,21 @@ export default function ItemDetailPage() {
         }
     };
 
-    if (loading) return <main className="min-h-screen bg-gray-50 flex items-center justify-center"><Loader2 className="h-8 w-8 text-gray-400 animate-spin" /></main>;
-    if (error) return <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4"><div className="text-center max-w-md"><h2 className="text-2xl font-bold text-gray-900 mb-4">エラーが発生しました</h2><p className="text-gray-600 mb-8">{error}</p><Button onClick={() => router.push("/history")}>一覧に戻る</Button></div></main>;
+    if (loading) return <main className="min-h-screen bg-muted/30 flex items-center justify-center"><Loader2 className="h-8 w-8 text-muted-foreground animate-spin" /></main>;
+    if (error) return <main className="min-h-screen bg-muted/30 flex flex-col items-center justify-center p-4"><div className="text-center max-w-md"><h2 className="text-2xl font-bold text-foreground mb-4">エラーが発生しました</h2><p className="text-muted-foreground mb-8">{error}</p><Button onClick={() => router.push("/history")}>一覧に戻る</Button></div></main>;
     if (!item) return null;
 
     return (
-        <main className="min-h-screen bg-gray-50 pb-20">
+        <main className="min-h-screen bg-muted/30 pb-20">
             <div className="container max-w-7xl mx-auto px-4 py-8 relative"> {/* Updated max-w to match PreviewStep */}
 
                 {/* Header */}
-                <div className="flex items-center justify-between mb-6 sticky top-0 z-40 bg-gray-50/95 backdrop-blur py-2">
+                <div className="flex items-center justify-between mb-6 sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border/50 py-3 px-1 -mx-1 rounded-b-lg">
                     <div className="flex items-center gap-4">
-                        <Button variant="ghost" size="icon" onClick={handleBack}>
+                        <Button variant="ghost" size="icon" onClick={handleBack} className="hover:bg-accent hover:text-accent-foreground">
                             <ArrowLeft className="h-5 w-5" />
                         </Button>
-                        <h1 className="text-xl font-bold text-gray-900">
+                        <h1 className="text-xl font-bold text-foreground">
                             {isEditing ? "商品を編集" : "商品詳細"}
                         </h1>
                     </div>
@@ -433,7 +433,7 @@ export default function ItemDetailPage() {
                                         次の商品 <ChevronRight className="h-4 w-4 ml-1" />
                                     </Button>
                                 </div>
-                                <Button onClick={() => setIsEditing(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                                <Button onClick={() => setIsEditing(true)} className="shadow-md transition-transform active:scale-95">
                                     <Pencil className="h-4 w-4 mr-2" />
                                     編集する
                                 </Button>
@@ -493,11 +493,11 @@ export default function ItemDetailPage() {
 
                 {/* Mobile Bottom Navigation (Read Mode Only) */}
                 {!isEditing && (
-                    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 flex items-center justify-between z-50">
+                    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t border-border/50 p-4 flex items-center justify-between z-50">
                         <Button variant="ghost" disabled={!prevId} onClick={() => prevId && goToItem(prevId)} className="flex-1">
                             <ChevronLeft className="h-5 w-5 mr-1" /> 前へ
                         </Button>
-                        <div className="w-px h-6 bg-gray-200 mx-2"></div>
+                        <div className="w-px h-6 bg-border mx-2"></div>
                         <Button variant="ghost" disabled={!nextId} onClick={() => nextId && goToItem(nextId)} className="flex-1">
                             次へ <ChevronRight className="h-5 w-5 ml-1" />
                         </Button>

@@ -33,7 +33,7 @@ export function TutorialDialog({
                 {/* YouTube動画埋め込み */}
                 {process.env.NEXT_PUBLIC_TUTORIAL_VIDEO_ID && (
                     <div
-                        className="relative w-full rounded-lg overflow-hidden bg-gray-900"
+                        className="relative w-full rounded-xl overflow-hidden bg-black shadow-xl ring-1 ring-white/10"
                         style={{ paddingBottom: "56.25%" }}
                     >
                         <iframe
@@ -47,74 +47,74 @@ export function TutorialDialog({
                 )}
 
                 {/* ステップ説明 */}
-                <div className="space-y-4 py-4">
-                    <div className="flex gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 font-bold text-sm">
+                <div className="space-y-4 py-6">
+                    <div className="flex gap-4">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm ring-1 ring-primary/20">
                             1
                         </div>
                         <div>
-                            <h3 className="font-semibold text-gray-900">
+                            <h3 className="font-semibold text-foreground">
                                 ログイン・新規登録
                             </h3>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-sm text-muted-foreground mt-1">
                                 まずログインして、あなた専用のデータ管理しましょう
                             </p>
                         </div>
                     </div>
-                    <div className="flex gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 font-bold text-sm">
+                    <div className="flex gap-4">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm ring-1 ring-primary/20">
                             2
                         </div>
                         <div>
-                            <h3 className="font-semibold text-gray-900">
+                            <h3 className="font-semibold text-foreground">
                                 商品画像をアップロード
                             </h3>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-sm text-muted-foreground mt-1">
                                 売りたい商品の写真を選択してください
                             </p>
                         </div>
                     </div>
-                    <div className="flex gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 font-bold text-sm">
+                    <div className="flex gap-4">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm ring-1 ring-primary/20">
                             3
                         </div>
                         <div>
-                            <h3 className="font-semibold text-gray-900">
+                            <h3 className="font-semibold text-foreground">
                                 AIが自動生成
                             </h3>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-sm text-muted-foreground mt-1">
                                 商品画像・商品名・説明文・価格をAIが提案します
                             </p>
                         </div>
                     </div>
-                    <div className="flex gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 font-bold text-sm">
+                    <div className="flex gap-4">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm ring-1 ring-primary/20">
                             4
                         </div>
                         <div>
-                            <h3 className="font-semibold text-gray-900">
+                            <h3 className="font-semibold text-foreground">
                                 編集して更新
                             </h3>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-sm text-muted-foreground mt-1">
                                 内容を確認・編集してから更新できます
                             </p>
                         </div>
                     </div>
                 </div>
                 {/* バグ報告リンク */}
-                <div className="text-center pt-2 border-t">
+                <div className="text-center pt-2 border-t border-border/50">
                     <a
                         href="https://forms.gle/gmjTgxPjNaCjmXJR7"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-gray-500 hover:text-blue-600 underline"
+                        className="text-sm text-muted-foreground hover:text-primary underline transition-colors"
                     >
                         バグ・ご意見を報告する
                     </a>
                 </div>
                 <Button
                     onClick={() => onOpenChange(false)}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-full"
+                    className="w-full rounded-full shadow-md active:scale-95 transition-all"
                 >
                     閉じる
                 </Button>

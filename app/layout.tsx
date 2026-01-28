@@ -85,7 +85,7 @@ export default function RootLayout({
   return (
     <html lang="ja" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${notoSansJP.variable} antialiased font-sans bg-gray-50 text-gray-900`}
+        className={`${inter.variable} ${notoSansJP.variable} antialiased font-sans`}
         suppressHydrationWarning
       >
         <Providers>

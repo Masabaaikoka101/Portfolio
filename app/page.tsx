@@ -14,6 +14,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Reorder, useDragControls } from "framer-motion";
@@ -281,14 +282,14 @@ export default function HistoryPage() {
 
 
     return (
-        <main className="min-h-screen bg-gray-50">
+        <main className="min-h-screen bg-muted/30">
             <div className="container max-w-5xl mx-auto px-4 py-8">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">作成一覧</h1>
+                        <h1 className="text-2xl font-bold text-foreground">作成一覧</h1>
                         <div className="flex items-center gap-2 mt-1">
-                            <p className="text-sm text-blue-600">
+                            <p className="text-sm text-muted-foreground">
                                 作成済みの下書き ({items.length})
                             </p>
                             {isProcessing && (
@@ -322,7 +323,7 @@ export default function HistoryPage() {
                 </div>
 
                 {isEditMode && items.length > 0 && (
-                    <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 sm:gap-3 bg-white p-2 sm:p-3 rounded-lg border border-gray-200 mb-4 animate-in fade-in duration-200">
+                    <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 sm:gap-3 bg-card p-2 sm:p-3 rounded-lg border border-border mb-4 animate-in fade-in duration-200 shadow-sm">
                         <div className="flex items-center gap-2 sm:gap-3">
                             <Button
                                 variant="ghost"
@@ -405,7 +406,10 @@ export default function HistoryPage() {
                         </p>
                     </div>
                 ) : (
-                    <div className={isEditMode ? "" : "grid grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-4"}>
+                    <div className={cn(
+                        isEditMode ? "" : "grid grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-4",
+                        "animate-in fade-in duration-500"
+                    )}>
 
                         {/* 生成中スケルトン (通常モード時のみグリッド表示) */}
                         {!isEditMode && pendingCount > 0 && [...Array(pendingCount)].map((_, i) => (
