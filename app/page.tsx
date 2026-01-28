@@ -405,7 +405,10 @@ export default function HistoryPage() {
                         </p>
                     </div>
                 ) : (
-                    <div className={isEditMode ? "" : "grid grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-4"}>
+                    <div className={cn(
+                        isEditMode ? "" : "grid grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-4",
+                        "animate-in fade-in zoom-in-95 duration-500 slide-in-from-bottom-2"
+                    )}>
 
                         {/* 生成中スケルトン (通常モード時のみグリッド表示) */}
                         {!isEditMode && pendingCount > 0 && [...Array(pendingCount)].map((_, i) => (

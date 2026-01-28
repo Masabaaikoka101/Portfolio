@@ -132,7 +132,7 @@ export function ItemCard({
                     alt={title}
                     fill
                     priority={priority}
-                    className={`object-cover transition-opacity duration-300 ${isEditMode ? "select-none pointer-events-none" : ""
+                    className={`object-cover transition-all duration-500 group-hover:scale-105 ${isEditMode ? "select-none pointer-events-none" : ""
                         }`}
                     sizes="(max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
                     draggable={!isEditMode}
