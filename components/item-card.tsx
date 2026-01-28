@@ -114,7 +114,7 @@ export function ItemCard({
     return (
         <div
             className={cn(
-                "bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group",
+                "bg-card rounded-xl border border-border/50 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group",
                 isEditMode && "select-none",
                 className
             )}
@@ -123,7 +123,7 @@ export function ItemCard({
         >
             {/* 画像エリア + 価格オーバーレイ - ドラッグ可能 */}
             <div
-                className="relative aspect-square bg-gray-100 overflow-hidden"
+                className="relative aspect-square bg-muted overflow-hidden"
                 draggable={!isEditMode}
             >
                 {/* 画像表示ロジック: エラー時や処理中は適切にハンドリング */}
@@ -145,7 +145,7 @@ export function ItemCard({
                 />
 
                 {/* 画像ロードエラー時・ロード中のフォールバック（背景） */}
-                <div className="absolute inset-0 bg-gray-100 -z-10 flex items-center justify-center text-gray-300">
+                <div className="absolute inset-0 bg-muted -z-10 flex items-center justify-center text-muted-foreground">
                     <svg
                         className="w-12 h-12"
                         fill="none"
@@ -196,7 +196,7 @@ export function ItemCard({
                 ) : (
                     <h3
                         className={cn(
-                            "text-sm font-medium text-gray-900 line-clamp-2 leading-tight mb-2 hidden md:block",
+                            "text-sm font-medium text-card-foreground line-clamp-2 leading-tight mb-2 hidden md:block",
                             !isEditMode && "select-text cursor-text"
                         )}
                         onClick={(e) => {
@@ -212,10 +212,10 @@ export function ItemCard({
                 )}
                 {/* メタ情報 */}
                 <div className="flex flex-col items-start gap-0.5 md:flex-row md:items-center md:justify-between md:gap-2">
-                    <span className="text-[9px] md:text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 md:px-2 rounded-full leading-none">
+                    <span className="text-[9px] md:text-xs bg-secondary text-secondary-foreground px-1.5 py-0.5 md:px-2 rounded-full leading-none">
                         {status}
                     </span>
-                    <span className="text-[9px] md:text-xs text-gray-400 whitespace-nowrap leading-none pl-0.5">
+                    <span className="text-[9px] md:text-xs text-muted-foreground whitespace-nowrap leading-none pl-0.5">
                         {formattedDate}
                     </span>
                 </div>

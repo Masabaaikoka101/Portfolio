@@ -299,8 +299,8 @@ export default function LoginPage() {
     // =========================================================================
     if (showResetPassword) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
-                <div className="w-full max-w-sm space-y-8 bg-white p-8 shadow-lg rounded-xl">
+            <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-12 sm:px-6 lg:px-8">
+                <div className="w-full max-w-sm space-y-8 bg-card p-8 shadow-xl rounded-xl border border-border/50">
                     {/* ヘッダー */}
                     <div className="text-center">
                         <h2 className="text-2xl font-bold tracking-tight text-gray-900">
@@ -353,8 +353,8 @@ export default function LoginPage() {
     // ログイン/登録画面
     // =========================================================================
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
-            <div className="w-full max-w-sm space-y-8 bg-white p-8 shadow-lg rounded-xl">
+        <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-12 sm:px-6 lg:px-8">
+            <div className="w-full max-w-sm space-y-8 bg-card p-8 shadow-xl rounded-xl border border-border/50">
                 {/* ヘッダー */}
                 <div className="text-center">
                     <h2 className="text-2xl font-bold tracking-tight text-gray-900">
