@@ -403,7 +403,7 @@ export default function ItemDetailPage() {
     };
 
     if (loading) return <main className="min-h-screen bg-muted/30 flex items-center justify-center"><Loader2 className="h-8 w-8 text-muted-foreground animate-spin" /></main>;
-    if (error) return <main className="min-h-screen bg-muted/30 flex flex-col items-center justify-center p-4"><div className="text-center max-w-md"><h2 className="text-2xl font-bold text-foreground mb-4">エラーが発生しました</h2><p className="text-muted-foreground mb-8">{error}</p><Button onClick={() => router.push("/history")}>一覧に戻る</Button></div></main>;
+    if (error) return <main className="min-h-screen bg-muted/30 flex flex-col items-center justify-center p-4"><div className="text-center max-w-md"><h2 className="text-2xl font-bold text-foreground mb-4">エラーが発生しました</h2><p className="text-muted-foreground mb-8">{error}</p><Button onClick={() => router.push("/")}>一覧に戻る</Button></div></main>;
     if (!item) return null;
 
     return (
