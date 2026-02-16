@@ -44,6 +44,7 @@ export default function ItemDetailPage() {
     // Image selection state
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [localImages, setLocalImages] = useState<(string | null)[]>([]);
+    const [localOriginalImages, setLocalOriginalImages] = useState<(string | undefined)[]>([]);
     const [processingStates, setProcessingStates] = useState<Record<number, boolean>>({});
 
     // 初期値保持（Dirty Check用）
@@ -156,10 +157,23 @@ export default function ItemDetailPage() {
             setInitialPrice(loadedPrice);
             setInitialStatus(loadedStatus);
 
-            // 処理済み画像を初期化
             const processedImages = [data.image_url, ...(data.other_images || [])].filter((img): img is string => !!img);
             setLocalImages(processedImages);
             setInitialImages(processedImages); // 初期値も保存
+
+            // オリジナル画像の配列を構築
+            const origMain = data.original_image_url;
+            const origOthers = data.original_other_images || [];
+            const origArray: (string | undefined)[] = [];
+            for (let i = 0; i < processedImages.length; i++) {
+                if (i === 0) {
+                    origArray.push(origMain);
+                } else {
+                    // original_other_imagesが不足している場合は処理済み画像をフォールバック
+                    origArray.push(origOthers[i - 1] ?? processedImages[i]);
+                }
+            }
+            setLocalOriginalImages(origArray);
             setLoading(false);
         };
 
@@ -234,6 +248,8 @@ export default function ItemDetailPage() {
         // It passes the *current local state* of orderedIndices from MercariPreview.
 
         setLocalImages(prev => newIndices.map(i => prev[i]));
+        // オリジナル画像も同じ順序で並び替え
+        setLocalOriginalImages(prev => newIndices.map(i => prev[i]));
         setSelectedIndex(0); // Auto-select the top image
     };
 
@@ -450,21 +466,7 @@ export default function ItemDetailPage() {
                             image={item.image_url}
                             originalImage={item.original_image_url} // Persist original image
                             images={localImages}
-                            originalImages={(() => {
-                                // localImages と同じ長さの originalImages 配列を構築
-                                // original_other_images が不足している場合は undefined で埋める
-                                const origMain = item.original_image_url;
-                                const origOthers = item.original_other_images || [];
-                                const result: (string | undefined)[] = [];
-                                for (let i = 0; i < localImages.length; i++) {
-                                    if (i === 0) {
-                                        result.push(origMain);
-                                    } else {
-                                        result.push(origOthers[i - 1]);
-                                    }
-                                }
-                                return result;
-                            })()}
+                            originalImages={localOriginalImages}
                             selectedIndex={selectedIndex}
                             onImageSelect={setSelectedIndex}
                             loadingStates={localImages.map((_, i) => !!processingStates[i])}

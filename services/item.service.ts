@@ -142,17 +142,18 @@ export const ItemService = {
 
         if (dbError) {
             // other_imagesカラムが存在しない場合はフォールバック
-            if (dbError.message.includes("other_images")) {
-                console.warn("other_images column not found. Saving without it...");
+            if (dbError.message.includes("other_images") || dbError.message.includes("original_other_images")) {
+                console.warn("other_images/original_other_images column not found. Saving without them...");
                 const fallbackData = {
                     user_id: userId,
                     image_url: imageUrl,
+                    original_image_url: originalImageUrl,
                     title: formState.title,
                     description: formState.description,
                     price: formState.price,
                     status: formState.status,
                     category: DEFAULTS.category,
-                    tags: tags,
+                    tags: finalTags,
                 };
                 const { error: fallbackError } = await supabase.from("items").insert(fallbackData);
                 if (fallbackError) {
