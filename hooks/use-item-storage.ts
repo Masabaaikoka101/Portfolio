@@ -170,11 +170,10 @@ export function useItemStorage() {
 
             // 4. 成功処理
             toast.success("保存しました！");
-            onSuccess?.();
 
-            // 5. 履歴ページへ遷移
-            router.push("/");
-            router.refresh();
+            // 5. 遷移処理はonSuccessコールバックに委譲
+            // Note: setIsSaving(false)の前に呼ぶことで、ナビゲーションガードの再有効化を防ぐ
+            onSuccess?.();
 
         } catch (error) {
             console.error(error);

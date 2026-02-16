@@ -164,7 +164,13 @@ function HomeContent() {
     selectMode,
     isModeSelected,
     regenerateCurrentImage,
-  } = useItemForm();
+  } = useItemForm({
+    onSuccess: () => {
+      // 保存成功後はナビゲーションガードを解除してから遷移
+      setNavigationGuard(false);
+      router.push("/");
+    },
+  });
 
   // ... (navigation guard and useEffects omitted)
   const { setNavigationGuard } = useNavigationGuard();
