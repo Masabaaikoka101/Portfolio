@@ -10,7 +10,8 @@ import {
     ArrowLeft,
     ChevronLeft,
     ChevronRight,
-    Pencil
+    Pencil,
+    Download
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Item, ItemStatus } from "@/types";
@@ -44,6 +45,7 @@ export default function ItemDetailPage() {
     // Image selection state
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [localImages, setLocalImages] = useState<(string | null)[]>([]);
+    const [localOriginalImages, setLocalOriginalImages] = useState<(string | undefined)[]>([]);
     const [processingStates, setProcessingStates] = useState<Record<number, boolean>>({});
 
     // 初期値保持（Dirty Check用）
@@ -99,6 +101,40 @@ export default function ItemDetailPage() {
 
     // Intercept item traversal
     const goToItem = (id: string) => handleNavigation(`/items/${id}`);
+
+    // Download Image Handler
+    const handleDownload = async () => {
+        const urlToDownload = localImages[selectedIndex];
+        if (!urlToDownload) {
+            toast.error("ダウンロードする画像がありません");
+            return;
+        }
+
+        try {
+            toast.loading("ダウンロード準備中...", { id: "downloading" });
+            const response = await fetch(urlToDownload);
+            if (!response.ok) throw new Error("Network response was not ok");
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = blobUrl;
+            // Use item title or ID for filename, sanitize title if used
+            const safeTitle = (item?.title || "item").replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            a.download = `${safeTitle}_image_${selectedIndex + 1}.png`;
+
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(blobUrl);
+            document.body.removeChild(a);
+
+            toast.success("ダウンロードが完了しました", { id: "downloading" });
+        } catch (error) {
+            console.error("Download failed:", error);
+            toast.error("ダウンロードに失敗しました", { id: "downloading" });
+        }
+    };
 
 
     // ... (useEffect for keyboard shortcuts - update using handleNavigation logic if possible or disable during edit to avoid accidents)
@@ -156,10 +192,23 @@ export default function ItemDetailPage() {
             setInitialPrice(loadedPrice);
             setInitialStatus(loadedStatus);
 
-            // 処理済み画像を初期化
             const processedImages = [data.image_url, ...(data.other_images || [])].filter((img): img is string => !!img);
             setLocalImages(processedImages);
             setInitialImages(processedImages); // 初期値も保存
+
+            // オリジナル画像の配列を構築
+            const origMain = data.original_image_url;
+            const origOthers = data.original_other_images || [];
+            const origArray: (string | undefined)[] = [];
+            for (let i = 0; i < processedImages.length; i++) {
+                if (i === 0) {
+                    origArray.push(origMain);
+                } else {
+                    // original_other_imagesが不足している場合は処理済み画像をフォールバック
+                    origArray.push(origOthers[i - 1] ?? processedImages[i]);
+                }
+            }
+            setLocalOriginalImages(origArray);
             setLoading(false);
         };
 
@@ -171,15 +220,17 @@ export default function ItemDetailPage() {
         if (!item) return;
         setSaving(true);
         try {
+            const validLocalImages = localImages.filter((img): img is string => !!img && !img.startsWith('blob:'));
+            const validOrigImages = localOriginalImages.filter((img): img is string => !!img && !img.startsWith('blob:'));
+
             const { error } = await supabase
                 .from("items")
                 .update({
                     title, description, price, status,
-                    image_url: localImages[0] || item.image_url,
-                    original_image_url: item.original_image_url, // Keep original image URL
-                    original_other_images: item.original_other_images || [], // Keep other original images
-                    // blob: URLは一時的なものなので保存対象から除外
-                    other_images: localImages.slice(1).filter((img): img is string => !!img && !img.startsWith('blob:')),
+                    image_url: validLocalImages[0] || item.image_url,
+                    original_image_url: validOrigImages[0] || item.original_image_url,
+                    original_other_images: validOrigImages.slice(1),
+                    other_images: validLocalImages.slice(1),
                 })
                 .eq("id", item.id);
 
@@ -187,14 +238,13 @@ export default function ItemDetailPage() {
 
             toast.success("更新しました！");
 
-            // 保存成功時に初期値を更新してDirty状態を解消
             setInitialTitle(title);
             setInitialDescription(description);
             setInitialPrice(price);
             setInitialStatus(status);
-            setInitialImages(localImages.filter((img): img is string => img !== null));
+            setInitialImages(validLocalImages);
 
-            setIsEditing(false); // Exit edit mode on save
+            setIsEditing(false);
         } catch (error) {
             console.error(error);
             toast.error("更新に失敗しました");
@@ -211,9 +261,7 @@ export default function ItemDetailPage() {
             return;
         }
         setLocalImages(prev => prev.filter((_, i) => i !== index));
-        // Reset processing state for the deleted index is tricky because indices shift.
-        // It's safer to just clear it or let it be since we match by index. 
-        // A better approach would be to track by ID, but simple index filter is fine for this scope.
+        setLocalOriginalImages(prev => prev.filter((_, i) => i !== index));
     };
 
     const handleReorder = (newIndices: number[]) => {
@@ -234,6 +282,8 @@ export default function ItemDetailPage() {
         // It passes the *current local state* of orderedIndices from MercariPreview.
 
         setLocalImages(prev => newIndices.map(i => prev[i]));
+        // オリジナル画像も同じ順序で並び替え
+        setLocalOriginalImages(prev => newIndices.map(i => prev[i]));
         setSelectedIndex(0); // Auto-select the top image
     };
 
@@ -245,7 +295,6 @@ export default function ItemDetailPage() {
             return;
         }
 
-        // Check for background tag (Safety check for array)
         const tags = Array.isArray(item.tags) ? item.tags : [];
         const bgTag = tags.find(t => t.startsWith(SYSTEM_TAG_PREFIX));
         const backgroundType = bgTag ? bgTag.replace(SYSTEM_TAG_PREFIX, "") : null;
@@ -254,10 +303,9 @@ export default function ItemDetailPage() {
         const startIndex = localImages.length;
         const newUrls = files.map(file => URL.createObjectURL(file));
 
-        // Optimistic update: show images immediately
         setLocalImages(prev => [...prev, ...newUrls]);
+        setLocalOriginalImages(prev => [...prev, ...newUrls]);
 
-        // Set loading states
         setProcessingStates(prev => {
             const next = { ...prev };
             newUrls.forEach((_, i) => {
@@ -269,61 +317,61 @@ export default function ItemDetailPage() {
         const uploadImage = async (file: File, blobUrl: string, initialIndex: number) => {
             try {
                 console.log(`[Debug] uploadImage started for ${file.name}`);
-                let fileToUpload: File | Blob = file;
 
-                // 1. AI Background Processing (if setting exists)
+                // 1. オリジナル画像を先にStorageへアップロード
+                const origFileExt = file.name.split(".").pop() || "png";
+                const origFileName = `orig_${Date.now()}_${Math.random().toString(36).substring(7)}.${origFileExt}`;
+                const userId = item.user_id || "guest";
+                const origFilePath = `${userId}/${origFileName}`;
+
+                const { error: origUploadError } = await supabase.storage
+                    .from("item-images")
+                    .upload(origFilePath, file);
+
+                if (origUploadError) throw origUploadError;
+
+                const { data: { publicUrl: originalPublicUrl } } = supabase.storage
+                    .from("item-images")
+                    .getPublicUrl(origFilePath);
+
+                // 2. AI Background Processing
+                let fileToUpload: File | Blob = file;
                 if (backgroundType) {
                     try {
-                        console.log(`[Debug] Processing background: ${backgroundType} for ${file.name}`);
                         const result = await AiService.editImage(file, backgroundType);
                         if (result.success && result.imageUrl) {
-                            console.log("[Debug] AI processing success", result.imageUrl);
-                            // Convert Data URL to Blob
                             const res = await fetch(result.imageUrl);
                             fileToUpload = await res.blob();
                         } else {
-                            console.warn("[Debug] Background processing failed, using original.", result.error);
                             toast.error(`背景処理に失敗しました: ${file.name} (オリジナルを使用します)`);
                         }
                     } catch (e) {
-                        console.error("[Debug] AI Service Error:", e);
                         toast.error(`AI処理中にエラーが発生しました (オリジナルを使用します)`);
                     }
                 }
 
-                // 2. Upload to Supabase Storage
+                // 3. Upload processed image to Storage
                 const fileExt = file.name.split(".").pop() || "png";
-                // Ensure unique filename
-                const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-                const userId = item.user_id || "guest";
+                const fileName = `proc_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
                 const filePath = `${userId}/${fileName}`;
-
-                console.log(`[Debug] Uploading to Supabase: ${filePath}`);
 
                 const { error: uploadError } = await supabase.storage
                     .from("item-images")
                     .upload(filePath, fileToUpload);
 
-                if (uploadError) {
-                    console.error("[Debug] Supabase upload error:", uploadError);
-                    throw uploadError;
-                }
+                if (uploadError) throw uploadError;
 
-                const { data: { publicUrl } } = supabase.storage
+                const { data: { publicUrl: processedPublicUrl } } = supabase.storage
                     .from("item-images")
                     .getPublicUrl(filePath);
 
-                console.log(`[Debug] Upload success. Public URL: ${publicUrl}`);
-
-                // 3. Update state with real URL by matching the placeholder blob URL
-                // This prevents index mismatch if user deleted images during upload
-                setLocalImages(prev => prev.map(url => url === blobUrl ? publicUrl : url));
+                // 4. Update states
+                setLocalImages(prev => prev.map(url => url === blobUrl ? processedPublicUrl : url));
+                setLocalOriginalImages(prev => prev.map(url => url === blobUrl ? originalPublicUrl : url));
 
             } catch (error) {
                 console.error("[Debug] Error uploading image:", error);
                 toast.error(`画像のアップロードに失敗しました: ${file.name}`);
-                // Optional: Remove the failed image from localImages?
-                // For now, keep it (it will remain as blob URL or broken) to let user retry or delete.
             } finally {
                 setProcessingStates(prev => {
                     const next = { ...prev };
@@ -403,7 +451,7 @@ export default function ItemDetailPage() {
     };
 
     if (loading) return <main className="min-h-screen bg-muted/30 flex items-center justify-center"><Loader2 className="h-8 w-8 text-muted-foreground animate-spin" /></main>;
-    if (error) return <main className="min-h-screen bg-muted/30 flex flex-col items-center justify-center p-4"><div className="text-center max-w-md"><h2 className="text-2xl font-bold text-foreground mb-4">エラーが発生しました</h2><p className="text-muted-foreground mb-8">{error}</p><Button onClick={() => router.push("/history")}>一覧に戻る</Button></div></main>;
+    if (error) return <main className="min-h-screen bg-muted/30 flex flex-col items-center justify-center p-4"><div className="text-center max-w-md"><h2 className="text-2xl font-bold text-foreground mb-4">エラーが発生しました</h2><p className="text-muted-foreground mb-8">{error}</p><Button onClick={() => router.push("/")}>一覧に戻る</Button></div></main>;
     if (!item) return null;
 
     return (
@@ -433,9 +481,13 @@ export default function ItemDetailPage() {
                                         次の商品 <ChevronRight className="h-4 w-4 ml-1" />
                                     </Button>
                                 </div>
+                                <Button variant="outline" onClick={handleDownload} className="shadow-sm hover:bg-accent hidden md:flex">
+                                    <Download className="h-4 w-4 md:mr-2" />
+                                    <span className="hidden md:inline">ダウンロード</span>
+                                </Button>
                                 <Button onClick={() => setIsEditing(true)} className="shadow-md transition-transform active:scale-95">
-                                    <Pencil className="h-4 w-4 mr-2" />
-                                    編集する
+                                    <Pencil className="h-4 w-4 md:mr-2" />
+                                    <span className="hidden md:inline">編集する</span>
                                 </Button>
                             </>
                         )}
@@ -450,21 +502,7 @@ export default function ItemDetailPage() {
                             image={item.image_url}
                             originalImage={item.original_image_url} // Persist original image
                             images={localImages}
-                            originalImages={(() => {
-                                // localImages と同じ長さの originalImages 配列を構築
-                                // original_other_images が不足している場合は undefined で埋める
-                                const origMain = item.original_image_url;
-                                const origOthers = item.original_other_images || [];
-                                const result: (string | undefined)[] = [];
-                                for (let i = 0; i < localImages.length; i++) {
-                                    if (i === 0) {
-                                        result.push(origMain);
-                                    } else {
-                                        result.push(origOthers[i - 1]);
-                                    }
-                                }
-                                return result;
-                            })()}
+                            originalImages={localOriginalImages}
                             selectedIndex={selectedIndex}
                             onImageSelect={setSelectedIndex}
                             loadingStates={localImages.map((_, i) => !!processingStates[i])}
@@ -497,7 +535,11 @@ export default function ItemDetailPage() {
                         <Button variant="ghost" disabled={!prevId} onClick={() => prevId && goToItem(prevId)} className="flex-1">
                             <ChevronLeft className="h-5 w-5 mr-1" /> 前へ
                         </Button>
-                        <div className="w-px h-6 bg-border mx-2"></div>
+                        <div className="w-px h-6 bg-border mx-1"></div>
+                        <Button variant="ghost" onClick={handleDownload} className="flex-1 text-blue-600 hover:text-blue-700">
+                            <Download className="h-5 w-5" />
+                        </Button>
+                        <div className="w-px h-6 bg-border mx-1"></div>
                         <Button variant="ghost" disabled={!nextId} onClick={() => nextId && goToItem(nextId)} className="flex-1">
                             次へ <ChevronRight className="h-5 w-5 ml-1" />
                         </Button>

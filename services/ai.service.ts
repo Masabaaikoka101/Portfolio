@@ -157,12 +157,21 @@ export const AiService = {
         formData.append("image", processedFile);
         formData.append("status", status);
 
-        const response = await fetch("/api/analyze", {
-            method: "POST",
-            body: formData,
-            // Note: Content-Typeは自動設定されるため、手動で設定しない
-            // 手動設定するとboundaryが欠けてエラーになる
-        });
+        let response: Response;
+        try {
+            response = await fetch("/api/analyze", {
+                method: "POST",
+                body: formData,
+                // Note: Content-Typeは自動設定されるため、手動で設定しない
+                // 手動設定するとboundaryが欠けてエラーになる
+            });
+        } catch (error) {
+            // ネットワークエラー（オフライン等）の場合はTypeErrorが発生
+            if (error instanceof TypeError) {
+                throw new Error("インターネット接続を確認してください。ネットワークに接続できません。");
+            }
+            throw error;
+        }
 
         if (!response.ok) {
             throw new Error(`Analysis failed: ${response.statusText}`);
@@ -200,10 +209,27 @@ export const AiService = {
         formData.append("image", processedFile);
         formData.append("backgroundType", backgroundType);
 
-        const response = await fetch("/api/edit-image", {
-            method: "POST",
-            body: formData,
-        });
+        let response: Response;
+        try {
+            response = await fetch("/api/edit-image", {
+                method: "POST",
+                body: formData,
+            });
+        } catch (error) {
+            // ネットワークエラー（オフライン等）の場合
+            if (error instanceof TypeError) {
+                return {
+                    success: false,
+                    imageUrl: undefined,
+                    error: "インターネット接続を確認してください。ネットワークに接続できません。",
+                };
+            }
+            return {
+                success: false,
+                imageUrl: undefined,
+                error: `Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
+            };
+        }
 
         if (!response.ok) {
             let errorDetail = response.statusText;

@@ -606,46 +606,55 @@ export function MercariPreview({
                             販売価格
                         </Label>
                         <div className="flex items-center gap-2">
-                            <span className="text-lg font-bold text-gray-900">¥</span>
-                            <div className="relative">
-                                {isAnalyzing ? (
+                            {isAnalyzing ? (
+                                <>
+                                    <span className="text-lg font-bold text-gray-900">¥</span>
                                     <TextSkeleton className="h-10 w-40" />
-                                ) : editable ? (
-                                    <>
-                                        <Input
-                                            type="number"
-                                            value={price}
-                                            onChange={(e) => onPriceChange?.(parseInt(e.target.value) || 0)}
-                                            className="text-2xl font-bold text-gray-900 w-40 border-gray-300 focus:border-blue-500 pr-12"
-                                            min={0}
-                                        />
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-transparent"
-                                            onClick={() => handleCopy(price.toString(), "price")}
-                                            title="価格をコピー"
-                                        >
-                                            {copiedField === "price" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                                        </Button>
-                                    </>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-2xl lg:text-3xl font-bold text-gray-900">
-                                            {price.toLocaleString()}
-                                        </span>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="shrink-0 h-8 w-8 text-gray-400 hover:text-blue-600"
-                                            onClick={() => handleCopy(price.toString(), "price")}
-                                            title="価格をコピー"
-                                        >
-                                            {copiedField === "price" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                                        </Button>
+                                </>
+                            ) : price === 0 ? (
+                                <span className="text-lg font-bold text-destructive">販売不可</span>
+                            ) : (
+                                <>
+                                    <span className="text-lg font-bold text-gray-900">¥</span>
+                                    <div className="relative">
+                                        {editable ? (
+                                            <>
+                                                <Input
+                                                    type="number"
+                                                    value={price}
+                                                    onChange={(e) => onPriceChange?.(parseInt(e.target.value) || 0)}
+                                                    className="text-2xl font-bold text-gray-900 w-40 border-gray-300 focus:border-blue-500 pr-12"
+                                                    min={0}
+                                                />
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-transparent"
+                                                    onClick={() => handleCopy(price.toString(), "price")}
+                                                    title="価格をコピー"
+                                                >
+                                                    {copiedField === "price" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                                </Button>
+                                            </>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-2xl lg:text-3xl font-bold text-gray-900">
+                                                    {price.toLocaleString()}
+                                                </span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="shrink-0 h-8 w-8 text-gray-400 hover:text-blue-600"
+                                                    onClick={() => handleCopy(price.toString(), "price")}
+                                                    title="価格をコピー"
+                                                >
+                                                    {copiedField === "price" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
+                                </>
+                            )}
                         </div>
                     </div>
 

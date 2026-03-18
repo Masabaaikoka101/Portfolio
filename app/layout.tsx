@@ -28,6 +28,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
+import { NetworkStatus } from "@/components/network-status";
 
 /**
  * 欧文フォント設定
@@ -95,6 +96,7 @@ export default function RootLayout({
             <SiteFooter />
           </div>
           <Toaster />
+          <NetworkStatus />
         </Providers>
       </body>
     </html>

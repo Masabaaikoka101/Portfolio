@@ -114,8 +114,8 @@ export function PreviewStep({
     analyzingStates,
     onRegenerate,
 }: PreviewStepProps) {
-    // 編集モード状態（デフォルトで編集モードにしてAI再生成を利用可能に）
-    const [isEditing, setIsEditing] = useState(true);
+    // 編集モード状態（デフォルトは閲覧モード。編集ボタンで切替）
+    const [isEditing, setIsEditing] = useState(false);
 
     // 編集開始時の初期値を保持（Dirty Check用）
     const [initialValues, setInitialValues] = useState<{
