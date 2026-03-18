@@ -10,7 +10,8 @@ import {
     ArrowLeft,
     ChevronLeft,
     ChevronRight,
-    Pencil
+    Pencil,
+    Download
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Item, ItemStatus } from "@/types";
@@ -100,6 +101,40 @@ export default function ItemDetailPage() {
 
     // Intercept item traversal
     const goToItem = (id: string) => handleNavigation(`/items/${id}`);
+
+    // Download Image Handler
+    const handleDownload = async () => {
+        const urlToDownload = localImages[selectedIndex];
+        if (!urlToDownload) {
+            toast.error("ダウンロードする画像がありません");
+            return;
+        }
+
+        try {
+            toast.loading("ダウンロード準備中...", { id: "downloading" });
+            const response = await fetch(urlToDownload);
+            if (!response.ok) throw new Error("Network response was not ok");
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = blobUrl;
+            // Use item title or ID for filename, sanitize title if used
+            const safeTitle = (item?.title || "item").replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            a.download = `${safeTitle}_image_${selectedIndex + 1}.png`;
+
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(blobUrl);
+            document.body.removeChild(a);
+
+            toast.success("ダウンロードが完了しました", { id: "downloading" });
+        } catch (error) {
+            console.error("Download failed:", error);
+            toast.error("ダウンロードに失敗しました", { id: "downloading" });
+        }
+    };
 
 
     // ... (useEffect for keyboard shortcuts - update using handleNavigation logic if possible or disable during edit to avoid accidents)
@@ -449,9 +484,13 @@ export default function ItemDetailPage() {
                                         次の商品 <ChevronRight className="h-4 w-4 ml-1" />
                                     </Button>
                                 </div>
+                                <Button variant="outline" onClick={handleDownload} className="shadow-sm hover:bg-accent hidden md:flex">
+                                    <Download className="h-4 w-4 md:mr-2" />
+                                    <span className="hidden md:inline">ダウンロード</span>
+                                </Button>
                                 <Button onClick={() => setIsEditing(true)} className="shadow-md transition-transform active:scale-95">
-                                    <Pencil className="h-4 w-4 mr-2" />
-                                    編集する
+                                    <Pencil className="h-4 w-4 md:mr-2" />
+                                    <span className="hidden md:inline">編集する</span>
                                 </Button>
                             </>
                         )}
@@ -499,7 +538,11 @@ export default function ItemDetailPage() {
                         <Button variant="ghost" disabled={!prevId} onClick={() => prevId && goToItem(prevId)} className="flex-1">
                             <ChevronLeft className="h-5 w-5 mr-1" /> 前へ
                         </Button>
-                        <div className="w-px h-6 bg-border mx-2"></div>
+                        <div className="w-px h-6 bg-border mx-1"></div>
+                        <Button variant="ghost" onClick={handleDownload} className="flex-1 text-blue-600 hover:text-blue-700">
+                            <Download className="h-5 w-5" />
+                        </Button>
+                        <div className="w-px h-6 bg-border mx-1"></div>
                         <Button variant="ghost" disabled={!nextId} onClick={() => nextId && goToItem(nextId)} className="flex-1">
                             次へ <ChevronRight className="h-5 w-5 ml-1" />
                         </Button>

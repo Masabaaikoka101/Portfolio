@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
 
         if (backgroundType === "white") {
             response = await genAI.models.generateContent({
-                model: "gemini-2.5-flash-image",
+                model: "gemini-3.1-flash-image-preview",
                 contents: [
                     {
                         role: "user",
@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
             const promptText = BACKGROUND_PROMPTS[backgroundType] || DEFAULT_CUSTOM_PROMPT;
 
             response = await genAI.models.generateContent({
-                model: "gemini-2.5-flash-image",
+                model: "gemini-3.1-flash-image-preview",
                 contents: [
                     {
                         role: "user",
