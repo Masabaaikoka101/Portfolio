@@ -20,20 +20,17 @@ export function useBatchAnalysis(): UseBatchAnalysisResult {
 
         let successCount = 0;
 
-        try {
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
+        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+        const processSingleItem = async (item: Item, index: number): Promise<boolean> => {
+            try {
                 // 1. 画像取得
-                setCurrentStep(`${i + 1}/${items.length}: [1/4] 画像を取得中...`);
                 const response = await fetch(item.image_url);
                 if (!response.ok) throw new Error(`画像の取得に失敗しました: ${item.title}`);
                 const blob = await response.blob();
                 const file = new File([blob], "image.jpg", { type: blob.type });
 
                 // 2. 画像加工 (背景除去)
-                setCurrentStep(`${i + 1}/${items.length}: [2/4] AI背景除去中...`);
-                // FormData作成
                 const formData = new FormData();
                 formData.append("file", file);
                 formData.append("mode", "remove-bg");
@@ -53,8 +50,7 @@ export function useBatchAnalysis(): UseBatchAnalysisResult {
                         throw new Error("背景除去に失敗しました");
                     }
                 } catch (e) {
-                    console.warn("背景除去失敗、元画像を使用します", e);
-                    // フォールバック: 元画像をbase64化
+                    console.warn(`Item ${index + 1}: 背景除去失敗、元画像を使用します`, e);
                     const reader = new FileReader();
                     processedImageBase64 = await new Promise((resolve) => {
                         reader.onload = () => resolve(reader.result as string);
@@ -63,7 +59,6 @@ export function useBatchAnalysis(): UseBatchAnalysisResult {
                 }
 
                 // 3. Gemini分析
-                setCurrentStep(`${i + 1}/${items.length}: [3/4] Gemini分析中...`);
                 const analyzeRes = await fetch("/api/analyze", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -77,10 +72,6 @@ export function useBatchAnalysis(): UseBatchAnalysisResult {
                 const { title, description, price } = await analyzeRes.json();
 
                 // 4. 保存
-                setCurrentStep(`${i + 1}/${items.length}: [4/4] 保存中...`);
-
-                // base64からBlobを作成してアップロード
-                // DataURL ("data:image/png;base64,....") 前提
                 const base64Data = processedImageBase64.split(",")[1] || processedImageBase64;
                 const byteCharacters = atob(base64Data);
                 const byteNumbers = new Array(byteCharacters.length);
@@ -89,7 +80,7 @@ export function useBatchAnalysis(): UseBatchAnalysisResult {
                 }
                 const byteArray = new Uint8Array(byteNumbers);
                 const processedBlob = new Blob([byteArray], { type: "image/png" });
-                const processedFile = new File([processedBlob], `processed-${Date.now()}.png`, { type: "image/png" });
+                const processedFile = new File([processedBlob], `processed-${Date.now()}-${index}.png`, { type: "image/png" });
 
                 const fileName = `batch-${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
                 const { error: uploadError } = await supabase.storage
@@ -101,27 +92,61 @@ export function useBatchAnalysis(): UseBatchAnalysisResult {
                 const { data: UrlData } = supabase.storage.from("item-images").getPublicUrl(fileName);
                 const publicUrl = UrlData.publicUrl;
 
-                // ユーザーIDの取得 (Client Componentなのでセッションから)
                 const { data: { session } } = await supabase.auth.getSession();
                 const userId = session?.user?.id;
 
                 if (!userId) throw new Error("ユーザー認証が見つかりません");
 
-                // DB Insert
                 const { error: insertError } = await supabase.from("items").insert({
                     user_id: userId,
-                    title: title || item.title, // 生成失敗時は元のタイトル
+                    title: title || item.title,
                     description: description || item.description,
                     price: price || item.price,
                     status: item.status,
                     image_url: publicUrl,
-                    original_image_url: item.image_url, // 元画像のURLも保存しておく
+                    original_image_url: item.image_url,
                 });
 
                 if (insertError) throw insertError;
 
-                successCount++;
-                setProgress(((i + 1) / items.length) * 100);
+                return true;
+            } catch (error) {
+                console.error(`Item ${index + 1} failed:`, error);
+                return false;
+            }
+        };
+
+        try {
+            const concurrency = 4; // 同時処理数
+            let processedCount = 0;
+
+            for (let i = 0; i < items.length; i += concurrency) {
+                const chunk = items.slice(i, i + concurrency);
+                const endIndex = Math.min(i + concurrency, items.length);
+
+                // 並行処理中の進捗表示
+                setCurrentStep(`全${items.length}件中、${i + 1}〜${endIndex}件目をAI並列処理中...`);
+
+                // チャンク内のアイテムを並列して実行
+                const results = await Promise.allSettled(
+                    chunk.map((item, idx) => processSingleItem(item, i + idx))
+                );
+
+                // 成功したものをカウント
+                results.forEach((result) => {
+                    if (result.status === 'fulfilled' && result.value === true) {
+                        successCount++;
+                    }
+                });
+
+                processedCount += chunk.length;
+                setProgress((processedCount / items.length) * 100);
+
+                // APIのレートリミットを回避するため、最後のチャンク以外は待機時間を設ける
+                if (endIndex < items.length) {
+                    setCurrentStep(`API制限回避のため一時待機中... (残り${items.length - endIndex}件)`);
+                    await sleep(3000); // 3秒待機
+                }
             }
         } catch (error) {
             console.error(error);

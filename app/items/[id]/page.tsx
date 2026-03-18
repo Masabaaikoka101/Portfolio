@@ -220,15 +220,17 @@ export default function ItemDetailPage() {
         if (!item) return;
         setSaving(true);
         try {
+            const validLocalImages = localImages.filter((img): img is string => !!img && !img.startsWith('blob:'));
+            const validOrigImages = localOriginalImages.filter((img): img is string => !!img && !img.startsWith('blob:'));
+
             const { error } = await supabase
                 .from("items")
                 .update({
                     title, description, price, status,
-                    image_url: localImages[0] || item.image_url,
-                    original_image_url: item.original_image_url, // Keep original image URL
-                    original_other_images: item.original_other_images || [], // Keep other original images
-                    // blob: URLは一時的なものなので保存対象から除外
-                    other_images: localImages.slice(1).filter((img): img is string => !!img && !img.startsWith('blob:')),
+                    image_url: validLocalImages[0] || item.image_url,
+                    original_image_url: validOrigImages[0] || item.original_image_url,
+                    original_other_images: validOrigImages.slice(1),
+                    other_images: validLocalImages.slice(1),
                 })
                 .eq("id", item.id);
 
@@ -236,14 +238,13 @@ export default function ItemDetailPage() {
 
             toast.success("更新しました！");
 
-            // 保存成功時に初期値を更新してDirty状態を解消
             setInitialTitle(title);
             setInitialDescription(description);
             setInitialPrice(price);
             setInitialStatus(status);
-            setInitialImages(localImages.filter((img): img is string => img !== null));
+            setInitialImages(validLocalImages);
 
-            setIsEditing(false); // Exit edit mode on save
+            setIsEditing(false);
         } catch (error) {
             console.error(error);
             toast.error("更新に失敗しました");
@@ -260,9 +261,7 @@ export default function ItemDetailPage() {
             return;
         }
         setLocalImages(prev => prev.filter((_, i) => i !== index));
-        // Reset processing state for the deleted index is tricky because indices shift.
-        // It's safer to just clear it or let it be since we match by index. 
-        // A better approach would be to track by ID, but simple index filter is fine for this scope.
+        setLocalOriginalImages(prev => prev.filter((_, i) => i !== index));
     };
 
     const handleReorder = (newIndices: number[]) => {
@@ -296,7 +295,6 @@ export default function ItemDetailPage() {
             return;
         }
 
-        // Check for background tag (Safety check for array)
         const tags = Array.isArray(item.tags) ? item.tags : [];
         const bgTag = tags.find(t => t.startsWith(SYSTEM_TAG_PREFIX));
         const backgroundType = bgTag ? bgTag.replace(SYSTEM_TAG_PREFIX, "") : null;
@@ -305,10 +303,9 @@ export default function ItemDetailPage() {
         const startIndex = localImages.length;
         const newUrls = files.map(file => URL.createObjectURL(file));
 
-        // Optimistic update: show images immediately
         setLocalImages(prev => [...prev, ...newUrls]);
+        setLocalOriginalImages(prev => [...prev, ...newUrls]);
 
-        // Set loading states
         setProcessingStates(prev => {
             const next = { ...prev };
             newUrls.forEach((_, i) => {
@@ -320,61 +317,61 @@ export default function ItemDetailPage() {
         const uploadImage = async (file: File, blobUrl: string, initialIndex: number) => {
             try {
                 console.log(`[Debug] uploadImage started for ${file.name}`);
-                let fileToUpload: File | Blob = file;
 
-                // 1. AI Background Processing (if setting exists)
+                // 1. オリジナル画像を先にStorageへアップロード
+                const origFileExt = file.name.split(".").pop() || "png";
+                const origFileName = `orig_${Date.now()}_${Math.random().toString(36).substring(7)}.${origFileExt}`;
+                const userId = item.user_id || "guest";
+                const origFilePath = `${userId}/${origFileName}`;
+
+                const { error: origUploadError } = await supabase.storage
+                    .from("item-images")
+                    .upload(origFilePath, file);
+
+                if (origUploadError) throw origUploadError;
+
+                const { data: { publicUrl: originalPublicUrl } } = supabase.storage
+                    .from("item-images")
+                    .getPublicUrl(origFilePath);
+
+                // 2. AI Background Processing
+                let fileToUpload: File | Blob = file;
                 if (backgroundType) {
                     try {
-                        console.log(`[Debug] Processing background: ${backgroundType} for ${file.name}`);
                         const result = await AiService.editImage(file, backgroundType);
                         if (result.success && result.imageUrl) {
-                            console.log("[Debug] AI processing success", result.imageUrl);
-                            // Convert Data URL to Blob
                             const res = await fetch(result.imageUrl);
                             fileToUpload = await res.blob();
                         } else {
-                            console.warn("[Debug] Background processing failed, using original.", result.error);
                             toast.error(`背景処理に失敗しました: ${file.name} (オリジナルを使用します)`);
                         }
                     } catch (e) {
-                        console.error("[Debug] AI Service Error:", e);
                         toast.error(`AI処理中にエラーが発生しました (オリジナルを使用します)`);
                     }
                 }
 
-                // 2. Upload to Supabase Storage
+                // 3. Upload processed image to Storage
                 const fileExt = file.name.split(".").pop() || "png";
-                // Ensure unique filename
-                const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-                const userId = item.user_id || "guest";
+                const fileName = `proc_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
                 const filePath = `${userId}/${fileName}`;
-
-                console.log(`[Debug] Uploading to Supabase: ${filePath}`);
 
                 const { error: uploadError } = await supabase.storage
                     .from("item-images")
                     .upload(filePath, fileToUpload);
 
-                if (uploadError) {
-                    console.error("[Debug] Supabase upload error:", uploadError);
-                    throw uploadError;
-                }
+                if (uploadError) throw uploadError;
 
-                const { data: { publicUrl } } = supabase.storage
+                const { data: { publicUrl: processedPublicUrl } } = supabase.storage
                     .from("item-images")
                     .getPublicUrl(filePath);
 
-                console.log(`[Debug] Upload success. Public URL: ${publicUrl}`);
-
-                // 3. Update state with real URL by matching the placeholder blob URL
-                // This prevents index mismatch if user deleted images during upload
-                setLocalImages(prev => prev.map(url => url === blobUrl ? publicUrl : url));
+                // 4. Update states
+                setLocalImages(prev => prev.map(url => url === blobUrl ? processedPublicUrl : url));
+                setLocalOriginalImages(prev => prev.map(url => url === blobUrl ? originalPublicUrl : url));
 
             } catch (error) {
                 console.error("[Debug] Error uploading image:", error);
                 toast.error(`画像のアップロードに失敗しました: ${file.name}`);
-                // Optional: Remove the failed image from localImages?
-                // For now, keep it (it will remain as blob URL or broken) to let user retry or delete.
             } finally {
                 setProcessingStates(prev => {
                     const next = { ...prev };

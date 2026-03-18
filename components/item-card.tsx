@@ -111,6 +111,11 @@ export function ItemCard({
         day: "2-digit",
     });
 
+    /**
+     * 販売不可アイテムかどうかの判定
+     */
+    const isNotForSale = title.includes("出品不可") || title.includes("販売不可");
+
     return (
         <div
             className={cn(
@@ -177,9 +182,14 @@ export function ItemCard({
                     </div>
                 )}
 
-                {/* 価格バッジ - 0円または処理中/ロード中は非表示 */}
-                {!showShimmer && price > 0 && (
-                    <div className="absolute bottom-1 left-1 md:bottom-2 md:left-2 bg-black/70 text-white px-1.5 py-0.5 md:px-2 md:py-1 rounded text-[10px] md:text-sm font-bold z-10">
+                {/* 販売不可バッジ または 価格バッジ */}
+                {!showShimmer && isNotForSale && (
+                    <div className="absolute bottom-1 left-1 md:bottom-2 md:left-2 bg-red-600/90 text-white px-1.5 py-0.5 md:px-2 md:py-1 rounded text-[10px] md:text-sm font-bold z-10 shadow-sm">
+                        販売不可
+                    </div>
+                )}
+                {!showShimmer && !isNotForSale && price > 0 && (
+                    <div className="absolute bottom-1 left-1 md:bottom-2 md:left-2 bg-black/70 text-white px-1.5 py-0.5 md:px-2 md:py-1 rounded text-[10px] md:text-sm font-bold z-10 shadow-sm">
                         ¥{price.toLocaleString()}
                     </div>
                 )}
