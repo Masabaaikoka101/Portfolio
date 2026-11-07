@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // /api/edit-image が fs で読む背景参照画像を Vercel の関数バンドルに含める
+  outputFileTracingIncludes: {
+    "/api/edit-image": ["./public/backgrounds/**"],
+  },
   images: {
     remotePatterns: [
       {

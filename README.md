@@ -218,7 +218,8 @@ Pigroは、これらの悩みをAI技術で解決する出品サポートアプ�
 | カテゴリ | 技術 | 選定理由 |
 |----------|------|----------|
 | 認証・DB | **Supabase** | 無料枠で認証・DBを統合。開発速度重視 |
-| AI API | **Google Gemini API** | テキスト生成・画像編集を統一APIで実現 |
+| AI API | **Google Gemini API** | テキスト生成 |
+| 画像編集 AI | **Cloudflare Workers AI（FLUX.2 [klein] 4B）** | 元画像と背景の参照画像を入力に背景だけを置き換える。無料枠で動作（`IMAGE_PROVIDER` で Gemini に切り替え可） |
 | ホスティング | **Vercel** | Next.jsとの親和性、Serverless Functions |
 
 <br>
@@ -331,6 +332,11 @@ cp .env.example .env.local
 # - NEXT_PUBLIC_SUPABASE_URL
 # - NEXT_PUBLIC_SUPABASE_ANON_KEY
 # - GEMINI_API_KEY
+# - 画像編集（背景の置き換え）用:
+#   - IMAGE_PROVIDER         cloudflare（既定・無料枠）または gemini（有料キーが必要）
+#   - CLOUDFLARE_ACCOUNT_ID  Cloudflare のアカウントID
+#   - CLOUDFLARE_API_TOKEN   「Workers AI」権限の API トークン
+#   画像編集に失敗した場合、画面には元の画像が表示されます
 
 # 4. 開発サーバーを起動
 npm run dev
